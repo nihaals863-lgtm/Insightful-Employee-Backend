@@ -8,7 +8,7 @@ const getEmployees = async (req, res, next) => {
         const orgId = await getOrganizationId(req);
         const { role, employeeId: currentEmployeeId } = req.user;
 
-        let filter = {};
+        let filter = { role: 'EMPLOYEE' };
         if (role === 'MANAGER') {
             // Get manager's teamId
             const manager = await employeesService.getEmployeeById(currentEmployeeId);
@@ -18,6 +18,7 @@ const getEmployees = async (req, res, next) => {
                 return res.status(200).json({ success: true, data: [] });
             }
         } else if (role === 'EMPLOYEE') {
+            // Employees see only themselves (and they should have role EMPLOYEE anyway)
             filter.id = currentEmployeeId;
         }
 
