@@ -29,13 +29,21 @@ class ComplianceService {
             update: {
                 gdprEnabled: data.gdprEnabled,
                 activityMonitoring: data.activityMonitoring,
-                locationTracking: data.locationTracking
+                locationTracking: data.locationTracking,
+                showUrlsInActivityLogs: data.showUrlsInActivityLogs,
+                blurLevel: data.blurLevel,
+                saveOriginalScreenshots: data.saveOriginalScreenshots,
+                collectPHI: data.collectPHI
             },
             create: {
                 organizationId,
                 gdprEnabled: data.gdprEnabled,
                 activityMonitoring: data.activityMonitoring,
-                locationTracking: data.locationTracking
+                locationTracking: data.locationTracking,
+                showUrlsInActivityLogs: data.showUrlsInActivityLogs,
+                blurLevel: data.blurLevel,
+                saveOriginalScreenshots: data.saveOriginalScreenshots,
+                collectPHI: data.collectPHI
             }
         });
 

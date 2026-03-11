@@ -13,19 +13,7 @@ const getTeams = async (req, res, next) => {
         }
 
         let filter = {};
-        if (role === 'MANAGER') {
-            const { PrismaClient } = require('@prisma/client');
-            const prisma = new PrismaClient();
-            const manager = await prisma.employee.findUnique({
-                where: { id: currentEmployeeId },
-                select: { teamId: true }
-            });
-            if (manager && manager.teamId) {
-                filter.id = manager.teamId;
-            } else {
-                return res.status(200).json({ success: true, data: [] });
-            }
-        } else if (role === 'EMPLOYEE') {
+        if (role === 'EMPLOYEE') {
             return res.status(403).json({ success: false, message: "Access denied" });
         }
 
@@ -54,8 +42,8 @@ const getTeams = async (req, res, next) => {
 
 const createTeam = async (req, res, next) => {
     try {
-        if (req.user.role !== 'ADMIN') {
-            return res.status(403).json({ success: false, message: "Only admins can create teams" });
+        if (req.user.role !== 'ADMIN' && req.user.role !== 'MANAGER') {
+            return res.status(403).json({ success: false, message: "Only admins and managers can create teams" });
         }
         const validatedData = createTeamSchema.parse(req.body);
         const team = await teamsService.createTeam(validatedData);
@@ -86,8 +74,8 @@ const updateTeam = async (req, res, next) => {
 
 const deleteTeam = async (req, res, next) => {
     try {
-        if (req.user.role !== 'ADMIN') {
-            return res.status(403).json({ success: false, message: "Only admins can delete teams" });
+        if (req.user.role !== 'ADMIN' && req.user.role !== 'MANAGER') {
+            return res.status(403).json({ success: false, message: "Only admins and managers can delete teams" });
         }
         const { id } = req.params;
         await teamsService.deleteTeam(id);

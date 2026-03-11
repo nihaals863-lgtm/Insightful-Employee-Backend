@@ -9,15 +9,7 @@ const getEmployees = async (req, res, next) => {
         const { role, employeeId: currentEmployeeId } = req.user;
 
         let filter = { role: 'EMPLOYEE' };
-        if (role === 'MANAGER') {
-            // Get manager's teamId
-            const manager = await employeesService.getEmployeeById(currentEmployeeId);
-            if (manager && manager.teamId) {
-                filter.teamId = manager.teamId;
-            } else {
-                return res.status(200).json({ success: true, data: [] });
-            }
-        } else if (role === 'EMPLOYEE') {
+        if (role === 'EMPLOYEE') {
             // Employees see only themselves (and they should have role EMPLOYEE anyway)
             filter.id = currentEmployeeId;
         }
@@ -134,8 +126,8 @@ const updateEmployee = async (req, res, next) => {
 
 const deleteEmployee = async (req, res, next) => {
     try {
-        if (req.user.role !== 'ADMIN') {
-            return res.status(403).json({ success: false, message: "Only admins can delete employees" });
+        if (req.user.role !== 'ADMIN' && req.user.role !== 'MANAGER') {
+            return res.status(403).json({ success: false, message: "Only admins and managers can delete employees" });
         }
         const { id } = req.params;
         await employeesService.deleteEmployee(id);

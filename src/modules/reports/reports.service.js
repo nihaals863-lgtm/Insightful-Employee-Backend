@@ -2,16 +2,34 @@ const prisma = require('../../config/db');
 const { getOrganizationId } = require('../../utils/orgId');
 
 /**
+ * Builds a generic filter object for reports.
+ */
+const buildReportFilter = (organizationId, startDate, endDate, params = {}) => {
+    const { userId, teamId } = params;
+    const where = {
+        organizationId,
+        timestamp: { gte: startDate, lte: endDate }
+    };
+
+    if (userId) {
+        where.userId = userId;
+    } else if (teamId) {
+        where.employee = { teamId: teamId };
+    }
+
+    return where;
+};
+
+/**
  * Work Type Report: Distribution of productivity categories across app usage.
  */
-const getWorkTypeReport = async (organizationId, startDate, endDate) => {
+const getWorkTypeReport = async (organizationId, startDate, endDate, params) => {
+    const where = buildReportFilter(organizationId, startDate, endDate, params);
+    
     const logs = await prisma.appUsageLog.groupBy({
         by: ['productivity'],
         _sum: { duration: true },
-        where: {
-            organizationId,
-            timestamp: { gte: startDate, lte: endDate }
-        }
+        where
     });
 
     return logs.map(log => ({
@@ -23,14 +41,13 @@ const getWorkTypeReport = async (organizationId, startDate, endDate) => {
 /**
  * Apps & Websites Report: Detailed usage per app.
  */
-const getAppsReport = async (organizationId, startDate, endDate) => {
+const getAppsReport = async (organizationId, startDate, endDate, params) => {
+    const where = buildReportFilter(organizationId, startDate, endDate, params);
+
     const data = await prisma.appUsageLog.groupBy({
         by: ['appName', 'category', 'productivity'],
         _sum: { duration: true },
-        where: {
-            organizationId,
-            timestamp: { gte: startDate, lte: endDate }
-        },
+        where,
         orderBy: {
             _sum: { duration: 'desc' }
         },
@@ -43,9 +60,18 @@ const getAppsReport = async (organizationId, startDate, endDate) => {
 /**
  * Schedule Adherence Report: Compare Attendance with Shifts.
  */
-const getAdherenceReport = async (organizationId, startDate, endDate) => {
+const getAdherenceReport = async (organizationId, startDate, endDate, params) => {
+    const { userId, teamId } = params || {};
+    
+    const employeeWhere = { organizationId };
+    if (userId) {
+        employeeWhere.id = userId;
+    } else if (teamId) {
+        employeeWhere.teamId = teamId;
+    }
+
     const employees = await prisma.employee.findMany({
-        where: { organizationId },
+        where: employeeWhere,
         include: {
             attendance: {
                 where: { date: { gte: startDate, lte: endDate } }
@@ -94,9 +120,18 @@ const maskPII = async (organizationId, data, nameField = 'employee') => {
 /**
  * Location Insights Report: Work hours and employee counts per location.
  */
-const getLocationInsights = async (organizationId, startDate, endDate) => {
+const getLocationInsights = async (organizationId, startDate, endDate, params) => {
+    const { userId, teamId } = params || {};
+    
+    const employeeWhere = { organizationId };
+    if (userId) {
+        employeeWhere.id = userId;
+    } else if (teamId) {
+        employeeWhere.teamId = teamId;
+    }
+
     const employees = await prisma.employee.findMany({
-        where: { organizationId },
+        where: employeeWhere,
         include: {
             attendance: {
                 where: { date: { gte: startDate, lte: endDate } }
@@ -131,11 +166,24 @@ const getLocationInsights = async (organizationId, startDate, endDate) => {
 /**
  * Workload Distribution Report: Hours worked vs optimal range.
  */
-const getWorkloadReport = async (organizationId, startDate, endDate) => {
+const getWorkloadReport = async (organizationId, startDate, endDate, params) => {
+    const { userId, teamId } = params || {};
+    
+    const teamWhere = { organizationId };
+    if (teamId) {
+        teamWhere.id = teamId;
+    }
+
+    const employeeWhere = {};
+    if (userId) {
+        employeeWhere.id = userId;
+    }
+
     const teams = await prisma.team.findMany({
-        where: { organizationId },
+        where: teamWhere,
         include: {
             employees: {
+                where: employeeWhere,
                 include: {
                     attendance: {
                         where: { date: { gte: startDate, lte: endDate } }

@@ -12,5 +12,7 @@ router.post('/manual-time', attendanceController.addManualTime);
 router.get('/manual-time', attendanceController.getManualTimes);
 router.get('/shifts', attendanceController.getShifts);
 router.post('/shifts', attendanceController.createShift);
+router.get('/time-off', attendanceController.getTimeOffs);
+router.post('/time-off', attendanceController.createTimeOff);
 
 module.exports = router;

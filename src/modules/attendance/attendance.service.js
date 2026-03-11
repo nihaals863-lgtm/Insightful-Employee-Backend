@@ -131,6 +131,16 @@ const attendanceService = {
     getManualTimes: async (filters) => {
         const where = { organizationId: filters.organizationId };
         if (filters.employeeId) where.employeeId = filters.employeeId;
+        if (filters.teamId) where.employee = { teamId: filters.teamId };
+        
+        if (filters.startDate && filters.endDate) {
+            where.startTime = {
+                gte: new Date(filters.startDate),
+            };
+            where.endTime = {
+                lte: new Date(`${filters.endDate} 23:59:59`),
+            };
+        }
 
         return await prisma.manualTime.findMany({
             where,
@@ -143,16 +153,20 @@ const attendanceService = {
         });
     },
 
-    getShifts: async (organizationId, employeeId = null) => {
+    getShifts: async (organizationId, filters = {}) => {
         const where = { organizationId };
-        if (employeeId) where.employeeId = employeeId;
+        if (filters.employeeId) where.employeeId = filters.employeeId;
+        if (filters.startDate && filters.endDate) {
+            where.date = {
+                gte: new Date(filters.startDate),
+                lte: new Date(filters.endDate),
+            };
+        }
 
         return await prisma.shift.findMany({
             where,
             include: {
-                employee: {
-                    select: { fullName: true }
-                }
+                employee: { select: { fullName: true } }
             },
             orderBy: { date: 'asc' }
         });
@@ -166,7 +180,40 @@ const attendanceService = {
                 startTime: data.startTime,
                 endTime: data.endTime,
                 date: new Date(data.date),
-            }
+            },
+            include: { employee: { select: { fullName: true } } }
+        });
+    },
+
+    createTimeOff: async (data) => {
+        return await prisma.timeOff.create({
+            data: {
+                employeeId: data.employeeId,
+                organizationId: data.organizationId,
+                startDate: new Date(data.startDate),
+                endDate: new Date(data.endDate),
+                type: data.type || 'Days',
+                timeOffType: data.timeOffType || null,
+                timezone: data.timezone || null,
+                note: data.note || null,
+                singleDay: data.singleDay || false,
+            },
+            include: { employee: { select: { fullName: true } } }
+        });
+    },
+
+    getTimeOffs: async (organizationId, filters = {}) => {
+        const where = { organizationId };
+        if (filters.employeeId) where.employeeId = filters.employeeId;
+        if (filters.startDate && filters.endDate) {
+            where.startDate = { lte: new Date(filters.endDate) };
+            where.endDate = { gte: new Date(filters.startDate) };
+        }
+
+        return await prisma.timeOff.findMany({
+            where,
+            include: { employee: { select: { fullName: true } } },
+            orderBy: { startDate: 'asc' }
         });
     }
 };

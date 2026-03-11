@@ -49,6 +49,25 @@ const getEmployeeById = async (id) => {
  * Invite a new employee (creates employee record with INVITED status)
  */
 const inviteEmployee = async (data) => {
+    // Find the default tracking setting for this computer type in the organization
+    let trackingSetting = await prisma.trackingSetting.findFirst({
+        where: {
+            organizationId: data.organizationId,
+            computerType: data.computerType.toLowerCase(),
+            isDefault: true
+        }
+    });
+
+    // Fallback: If no default, pick the first one of that type
+    if (!trackingSetting) {
+        trackingSetting = await prisma.trackingSetting.findFirst({
+            where: {
+                organizationId: data.organizationId,
+                computerType: data.computerType.toLowerCase()
+            }
+        });
+    }
+
     return await prisma.employee.create({
         data: {
             fullName: data.fullName,
@@ -57,6 +76,7 @@ const inviteEmployee = async (data) => {
             teamId: data.teamId,
             location: data.location || 'Remote',
             computerType: data.computerType || 'PERSONAL',
+            trackingSettingId: trackingSetting?.id,
             role: 'EMPLOYEE',
             status: 'INVITED'
         }

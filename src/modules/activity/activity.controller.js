@@ -35,22 +35,7 @@ const activityController = {
                 return errorResponse(res, 'Access denied: You can only view your own activity', 403);
             }
 
-            if (role === 'MANAGER') {
-                const { PrismaClient } = require('@prisma/client');
-                const prisma = new PrismaClient();
-                const manager = await prisma.employee.findUnique({
-                    where: { id: currentEmployeeId },
-                    select: { teamId: true }
-                });
-                const targetEmployee = await prisma.employee.findUnique({
-                    where: { id: employeeId },
-                    select: { teamId: true }
-                });
-
-                if (!manager || !targetEmployee || manager.teamId !== targetEmployee.teamId) {
-                    return errorResponse(res, 'Access denied: You can only view activity for your own team', 403);
-                }
-            }
+            // Manager and Admin can view any employee activity
 
             const logs = await activityService.getEmployeeActivity(employeeId, startDate, endDate);
             return successResponse(res, logs, 'Employee activity fetched successfully');
@@ -70,18 +55,7 @@ const activityController = {
                 return errorResponse(res, 'Access denied: Employees cannot view team activity', 403);
             }
 
-            if (role === 'MANAGER') {
-                const { PrismaClient } = require('@prisma/client');
-                const prisma = new PrismaClient();
-                const manager = await prisma.employee.findUnique({
-                    where: { id: currentEmployeeId },
-                    select: { teamId: true }
-                });
-
-                if (!manager || manager.teamId !== teamId) {
-                    return errorResponse(res, 'Access denied: You can only view your own team activity', 403);
-                }
-            }
+            // Manager and Admin can view any team activity
 
             const logs = await activityService.getTeamActivity(teamId, startDate, endDate);
             return successResponse(res, logs, 'Team activity fetched successfully');
@@ -97,8 +71,8 @@ const activityController = {
             const { role } = req.user;
 
             // RBAC Filtering
-            if (role !== 'ADMIN') {
-                return errorResponse(res, 'Access denied: Admin access required', 403);
+            if (role !== 'ADMIN' && role !== 'MANAGER') {
+                return errorResponse(res, 'Access denied: Admin or Manager access required', 403);
             }
 
             const logs = await activityService.getOrganizationActivity(organizationId, startDate, endDate);
@@ -111,7 +85,7 @@ const activityController = {
     getOrganizationSummary: async (req, res) => {
         try {
             const organizationId = req.user.organizationId;
-            const { startDate, endDate } = req.query;
+            const { startDate, endDate, teamId, employeeId } = req.query;
 
             if (!organizationId) {
                 console.warn('[ActivityController] Missing organizationId in request user');
@@ -119,7 +93,7 @@ const activityController = {
                 return successResponse(res, [], 'No organization activity found');
             }
 
-            const summary = await activityService.getOrganizationSummary(organizationId, startDate, endDate);
+            const summary = await activityService.getOrganizationSummary(organizationId, startDate, endDate, { teamId, employeeId });
             return successResponse(res, summary, 'Organization summary fetched successfully');
         } catch (error) {
             console.error('[ActivityController] Summary Error:', error);

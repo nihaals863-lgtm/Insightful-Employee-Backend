@@ -52,6 +52,29 @@ class ActivitySimulator {
             const io = require('../socket/server').getIO();
 
             for (const emp of employees) {
+                // --- Attendance Simulation ---
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                
+                const existingAttendance = await prisma.attendance.findFirst({
+                    where: { employeeId: emp.id, date: today }
+                });
+
+                if (!existingAttendance) {
+                    await prisma.attendance.create({
+                        data: {
+                            employeeId: emp.id,
+                            organizationId: emp.organizationId,
+                            date: today,
+                            clockIn: new Date(new Date().setHours(8 + Math.floor(Math.random() * 2), Math.floor(Math.random() * 60), 0, 0)),
+                            status: 'PRESENT',
+                            late: Math.random() > 0.8
+                        }
+                    });
+                    console.log(`[Simulator] Attendance created for ${emp.fullName}`);
+                }
+
+                // --- Activity Simulation ---
                 // Randomly decide if they are ACTIVE, IDLE, or SYSTEM
                 const types = ['ACTIVE', 'ACTIVE', 'ACTIVE', 'IDLE', 'SYSTEM'];
                 const activityType = types[Math.floor(Math.random() * types.length)];

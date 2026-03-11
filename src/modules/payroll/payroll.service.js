@@ -3,40 +3,62 @@ const prisma = require('../../config/db');
 /**
  * Get payroll summary for an organization
  */
-const getPayrollSummary = async (organizationId) => {
-    // 1. Get all employees in organization
+const getPayrollSummary = async (organizationId, params = {}) => {
+    const { userId, teamId, startDate, endDate } = params;
+    
+    // Default dates if not provided
+    const start = startDate ? new Date(startDate) : new Date(new Date().setDate(new Date().getDate() - 30));
+    const end = endDate ? new Date(endDate) : new Date();
+
+    // 1. Build common filter for queries
+    const employeeWhere = { organizationId };
+    if (userId) employeeWhere.id = userId;
+    else if (teamId) employeeWhere.teamId = teamId;
+
+    // 2. Get filtered employees
     const employees = await prisma.employee.findMany({
-        where: { organizationId },
-        select: {
-            id: true,
-            fullName: true,
-            role: true,
-            hourlyRate: true,
+        where: employeeWhere,
+        include: {
+            attendance: {
+                where: { date: { gte: start, lte: end } }
+            }
         }
     });
 
-    // 2. Mock some recent financial stats for the top cards
-    // In a real app, this would query aggregated logs or a financials table
-    const totalGross = employees.reduce((acc, emp) => acc + (emp.hourlyRate * 160), 0); // Assuming 160h avg
-    const avgRate = employees.length > 0 
-        ? employees.reduce((acc, emp) => acc + emp.hourlyRate, 0) / employees.length 
-        : 0;
+    // 3. Calculate real financial stats based on attendance logs
+    let totalGross = 0;
+    let totalHours = 0;
+    
+    employees.forEach(emp => {
+        const empSeconds = emp.attendance.reduce((acc, curr) => acc + (curr.duration || 0), 0);
+        const empHours = empSeconds / 3600;
+        totalHours += empHours;
+        totalGross += empHours * (emp.hourlyRate || 0);
+    });
+
+    const avgRate = totalHours > 0 ? totalGross / totalHours : (employees.length > 0 ? employees.reduce((acc, e) => acc + (e.hourlyRate || 0), 0) / employees.length : 0);
 
     return {
-        totalPayroll: totalGross,
-        avgHourlyRate: avgRate,
+        totalPayroll: Math.round(totalGross * 100) / 100,
+        avgHourlyRate: Math.round(avgRate * 10) / 10,
         staffCount: employees.length,
-        trend: 5.2, // Mock trend
-        avgRateTrend: 1.2, // Mock trend
+        trend: 5.2, // Could be calculated comparing to previous period
+        avgRateTrend: 1.2,
     };
 };
 
 /**
  * Get payroll records for employees
  */
-const getPayrollRecords = async (organizationId, startDate, endDate) => {
+const getPayrollRecords = async (organizationId, startDate, endDate, params = {}) => {
+    const { userId, teamId } = params;
+    
+    const employeeWhere = { organizationId };
+    if (userId) employeeWhere.id = userId;
+    else if (teamId) employeeWhere.teamId = teamId;
+
     const employees = await prisma.employee.findMany({
-        where: { organizationId },
+        where: employeeWhere,
         include: {
             attendance: {
                 where: {

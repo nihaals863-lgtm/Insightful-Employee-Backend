@@ -100,7 +100,7 @@ const activityService = {
         });
     },
 
-    getOrganizationSummary: async (organizationId, startDate, endDate) => {
+    getOrganizationSummary: async (organizationId, startDate, endDate, params) => {
         const where = {
             organizationId,
         };

@@ -43,17 +43,8 @@ const screenshotsController = {
                 // Employee can only see own screenshots
                 where.employeeId = userId;
             } else if (role === 'MANAGER') {
-                // Manager can see their team's screenshots
-                const manager = await prisma.employee.findFirst({
-                    where: { id: userId },
-                    include: { team: { include: { employees: true } } }
-                });
-                if (manager?.team) {
-                    const teamEmployeeIds = manager.team.employees.map(e => e.id);
-                    where.employeeId = { in: teamEmployeeIds };
-                } else {
-                    where.employeeId = userId;
-                }
+                // Manager can see all screenshots in organization
+                where.organizationId = organizationId;
             }
             // ADMIN sees all - no extra filter needed
 

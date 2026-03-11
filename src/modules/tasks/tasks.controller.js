@@ -64,8 +64,8 @@ class TasksController {
 
     async deleteTask(req, res) {
         try {
-            if (req.user.role !== 'ADMIN') {
-                return res.status(403).json({ success: false, message: "Only admins can delete tasks" });
+            if (req.user.role !== 'ADMIN' && req.user.role !== 'MANAGER') {
+                return res.status(403).json({ success: false, message: "Only admins and managers can delete tasks" });
             }
             const { id } = req.params;
             await tasksService.deleteTask(id);

@@ -1,28 +1,63 @@
 const prisma = require('../../config/db');
 
-const APPS = [
-    { name: 'VS Code', domain: 'code.visualstudio.com', category: 'Development', productivity: 'PRODUCTIVE' },
-    { name: 'GitHub', domain: 'github.com', category: 'Development', productivity: 'PRODUCTIVE' },
-    { name: 'Slack', domain: 'slack.com', category: 'Communication', productivity: 'PRODUCTIVE' },
-    { name: 'Gmail', domain: 'gmail.com', category: 'Communication', productivity: 'PRODUCTIVE' },
-    { name: 'Zoom', domain: 'zoom.us', category: 'Communication', productivity: 'PRODUCTIVE' },
-    { name: 'Figma', domain: 'figma.com', category: 'Design', productivity: 'PRODUCTIVE' },
-    { name: 'Notion', domain: 'notion.so', category: 'Productivity', productivity: 'PRODUCTIVE' },
-    { name: 'Jira', domain: 'atlassian.com', category: 'Project Mgmt', productivity: 'PRODUCTIVE' },
-    { name: 'Google Docs', domain: 'docs.google.com', category: 'Productivity', productivity: 'PRODUCTIVE' },
-    { name: 'YouTube', domain: 'youtube.com', category: 'Entertainment', productivity: 'UNPRODUCTIVE' },
-    { name: 'Reddit', domain: 'reddit.com', category: 'Social', productivity: 'UNPRODUCTIVE' },
-    { name: 'Twitter / X', domain: 'x.com', category: 'Social', productivity: 'UNPRODUCTIVE' },
-    { name: 'Spotify', domain: 'spotify.com', category: 'Entertainment', productivity: 'NEUTRAL' },
-    { name: 'Chrome', domain: 'chrome', category: 'Browser', productivity: 'NEUTRAL' },
-    { name: 'Postman', domain: 'postman.com', category: 'Development', productivity: 'PRODUCTIVE' },
-    { name: 'Udemy', domain: 'udemy.com', category: 'Learning', productivity: 'PRODUCTIVE' },
-];
-
 const productivityService = {
-    /**
-     * Get aggregated app usage from AppUsageLog
-     */
+    // ── Tags ────────────────────────────────────────────────────────
+    getTags: async (organizationId) => {
+        return await prisma.productivityTag.findMany({
+            where: { organizationId },
+            include: { _count: { select: { rules: true } } }
+        });
+    },
+
+    createTag: async (organizationId, data) => {
+        return await prisma.productivityTag.create({
+            data: {
+                ...data,
+                organizationId
+            }
+        });
+    },
+
+    updateTag: async (tagId, data) => {
+        return await prisma.productivityTag.update({
+            where: { id: tagId },
+            data
+        });
+    },
+
+    deleteTag: async (tagId) => {
+        return await prisma.productivityTag.delete({
+            where: { id: tagId }
+        });
+    },
+
+    // ── Rules (Branding/Classification) ──────────────────────────────
+    getRules: async (organizationId) => {
+        return await prisma.productivityRule.findMany({
+            where: { organizationId },
+            include: { tag: true }
+        });
+    },
+
+    upsertRule: async (organizationId, data) => {
+        const { domain, ...rest } = data;
+        return await prisma.productivityRule.upsert({
+            where: {
+                organizationId_domain: {
+                    organizationId,
+                    domain
+                }
+            },
+            update: rest,
+            create: {
+                ...rest,
+                domain,
+                organizationId
+            }
+        });
+    },
+
+    // ── Usage ────────────────────────────────────────────────────────
     getAppsUsage: async (organizationId, startDate, endDate) => {
         const where = { organizationId };
         if (startDate || endDate) {
@@ -31,18 +66,25 @@ const productivityService = {
             if (endDate) where.timestamp.lte = new Date(endDate);
         }
 
-        const logs = await prisma.appUsageLog.findMany({ where });
+        const [logs, rules] = await Promise.all([
+            prisma.appUsageLog.findMany({ where }),
+            prisma.productivityRule.findMany({ where: { organizationId } })
+        ]);
 
+        const ruleMap = new Map(rules.map(r => [r.domain, r]));
         const appMap = {};
+
         logs.forEach(log => {
             const key = log.appName;
             if (!appMap[key]) {
+                const rule = ruleMap.get(log.domain);
                 appMap[key] = {
                     appName: log.appName,
                     domain: log.domain,
-                    category: log.category,
-                    productivity: log.productivity,
-                    totalUsage: 0, // seconds
+                    category: rule?.category || log.category,
+                    productivity: rule?.productivity || log.productivity,
+                    tagId: rule?.tagId || null,
+                    totalUsage: 0,
                 };
             }
             appMap[key].totalUsage += log.duration || 0;
@@ -52,13 +94,19 @@ const productivityService = {
             .map(app => ({
                 ...app,
                 totalUsageHours: Math.round((app.totalUsage / 3600) * 10) / 10,
-                productivityLabel: app.productivity === 'PRODUCTIVE' ? 'Focus'
-                    : app.productivity === 'UNPRODUCTIVE' ? 'Distraction'
-                        : 'Neutral',
             }))
             .sort((a, b) => b.totalUsage - a.totalUsage);
     },
 };
 
-module.exports = productivityService;
-module.exports.APPS = APPS;
+const APPS = [
+    { name: 'VS Code', domain: 'visualstudio.com', category: 'Development', productivity: 'PRODUCTIVE' },
+    { name: 'Google Chrome', domain: 'google.com', category: 'Research', productivity: 'PRODUCTIVE' },
+    { name: 'Slack', domain: 'slack.com', category: 'Communication', productivity: 'PRODUCTIVE' },
+    { name: 'Zoom', domain: 'zoom.us', category: 'Meeting', productivity: 'NEUTRAL' },
+    { name: 'Spotify', domain: 'spotify.com', category: 'Entertainment', productivity: 'UNPRODUCTIVE' },
+    { name: 'YouTube', domain: 'youtube.com', category: 'Entertainment', productivity: 'UNPRODUCTIVE' },
+    { name: 'Terminal', domain: 'iterm2.com', category: 'Development', productivity: 'PRODUCTIVE' }
+];
+
+module.exports = { ...productivityService, APPS };
