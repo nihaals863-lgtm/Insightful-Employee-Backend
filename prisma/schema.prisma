@@ -120,10 +120,26 @@ model Organization {
   productivityRules ProductivityRule[]
   trackingSettings  TrackingSetting[]
   advancedTrackingSetting AdvancedTrackingSetting?
+  goals            Goal[]
+  screenshotSetting ScreenshotSetting?
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
 
   @@map("organizations")
+}
+
+model ScreenshotSetting {
+  id             String       @id @default(uuid())
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  organizationId String       @unique
+  randomShifts   Boolean      @default(false)
+  excludeAdmin   Boolean      @default(true)
+  globalBlur     Boolean      @default(false)
+  frequency      Int          @default(5) // In minutes
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@map("screenshot_settings")
 }
 
 model Team {
@@ -171,6 +187,7 @@ model Employee {
   projectAssignments ProjectAssignment[]
   projectTimeLogs    ProjectTimeLog[]
   auditLogs          AuditLog[]
+  goalStakeholders   GoalStakeholder[]
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
 
@@ -657,4 +674,47 @@ model AdvancedTrackingSetting {
   updatedAt           DateTime     @updatedAt
 
   @@map("advanced_tracking_settings")
+}
+
+model Goal {
+  id             String            @id @default(uuid())
+  title          String
+  sub            String            // Category/Subtitle
+  targetDate     String            // String for flexibility like "End of Q4"
+  progress       Int               @default(0)
+  status         String            @default("ACTIVE") // ACTIVE, COMPLETED
+  color          String?           @default("text-indigo-600 bg-indigo-50")
+  organization   Organization      @relation(fields: [organizationId], references: [id])
+  organizationId String
+  stakeholders   GoalStakeholder[]
+  activities     GoalActivity[]
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  @@map("goals")
+}
+
+model GoalStakeholder {
+  id         String   @id @default(uuid())
+  goal       Goal     @relation(fields: [goalId], references: [id], onDelete: Cascade)
+  goalId     String
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  employeeId String
+  createdAt  DateTime @default(now())
+
+  @@unique([goalId, employeeId])
+  @@map("goal_stakeholders")
+}
+
+model GoalActivity {
+  id         String   @id @default(uuid())
+  goal       Goal     @relation(fields: [goalId], references: [id], onDelete: Cascade)
+  goalId     String
+  title      String
+  status     String   // "Completed", "In Progress", "Pending"
+  type       String   // "milestone", "ops", "review", "upcoming"
+  activityDate DateTime @default(now())
+  createdAt  DateTime @default(now())
+
+  @@map("goal_activities")
 }

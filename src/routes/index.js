@@ -21,6 +21,7 @@ const alertsRoutes = require('../modules/alerts/alerts.routes');
 const emailReportsRoutes = require('../modules/email-reports/email-reports.routes');
 const integrationsRoutes = require('../modules/integrations/integrations.routes');
 const trackingRoutes = require('../modules/tracking/tracking.routes');
+const goalsRoutes = require('../modules/goals/goals.routes');
 const { successResponse } = require('../utils/response');
 
 // Routes
@@ -45,6 +46,7 @@ router.use('/alerts', alertsRoutes);
 router.use('/email-reports', emailReportsRoutes);
 router.use('/integrations', integrationsRoutes);
 router.use('/tracking', trackingRoutes);
+router.use('/goals', goalsRoutes);
 router.get('/health', (req, res) => {
     return successResponse(res, null, 'Backend Running', 200);
 });

@@ -37,10 +37,17 @@ async function calculateMetrics(organizationId, employeeId = null, teamId = null
     
     let activeTime = 0;
     let idleTime = 0;
+    let productiveTime = 0;
+    let unproductiveTime = 0;
+    let neutralTime = 0;
     
     logs.forEach(log => {
-        if (log.status === 'ACTIVE') activeTime += log.duration;
-        if (log.status === 'IDLE') idleTime += log.duration;
+        if (log.activityType === 'ACTIVE') activeTime += log.duration;
+        if (log.activityType === 'IDLE') idleTime += log.duration;
+
+        if (log.productivity === 'PRODUCTIVE') productiveTime += log.duration;
+        else if (log.productivity === 'UNPRODUCTIVE') unproductiveTime += log.duration;
+        else if (log.productivity === 'NEUTRAL') neutralTime += log.duration;
     });
 
     const manualWhere = { organizationId, startTime: dateFilter };
@@ -49,9 +56,10 @@ async function calculateMetrics(organizationId, employeeId = null, teamId = null
     
     const manualLogs = await prisma.manualTime.findMany({ where: manualWhere });
     const manualTime = manualLogs.reduce((acc, log) => acc + log.duration, 0);
+    // manualTime is typically productive or neutral. We'll count it towards productive
+    productiveTime += manualTime;
 
     const workTime = activeTime + manualTime + idleTime;
-    const productiveTime = activeTime + manualTime; // Assuming active is productive
     
     const utilization = workTime > 0 ? Math.round((productiveTime / workTime) * 100) : 0;
     
@@ -61,8 +69,8 @@ async function calculateMetrics(organizationId, employeeId = null, teamId = null
         idleTime: formatToHM(idleTime),
         manualTime: formatToHM(manualTime),
         productiveTime: formatToHM(productiveTime),
-        unproductiveTime: formatToHM(idleTime),
-        neutralTime: '00:00',
+        unproductiveTime: formatToHM(unproductiveTime || idleTime), // Use actual UNPRODUCTIVE or fallback roughly to idle
+        neutralTime: formatToHM(neutralTime),
         utilization,
         totalWorkHours: Number((workTime / 3600).toFixed(2))
     };
@@ -92,8 +100,8 @@ async function getIntradayActivity(organizationId, employeeId = null, teamId = n
 
     logs.forEach(log => {
         const hour = new Date(log.timestamp).getHours();
-        if (log.status === 'ACTIVE') hourlyData[hour].active += log.duration;
-        if (log.status === 'IDLE') hourlyData[hour].idle += log.duration;
+        if (log.activityType === 'ACTIVE') hourlyData[hour].active += log.duration;
+        if (log.activityType === 'IDLE') hourlyData[hour].idle += log.duration;
     });
 
     manualLogs.forEach(log => {
@@ -144,32 +152,38 @@ async function getEmployeeRankings(organizationId, teamId = null, startDate = nu
                 name: emp.fullName,
                 initials: emp.fullName.substring(0, 2).toUpperCase(),
                 team: emp.team?.name || 'Unassigned',
+                status: emp.status, // Include status here
                 active: 0,
                 idle: 0,
-                manual: 0
+                manual: 0,
+                productive: 0, 
+                unproductive: 0 
             };
         }
     };
 
     logs.forEach(log => {
         initEmp(log.employee);
-        if (log.status === 'ACTIVE') empStats[log.employee.id].active += log.duration;
-        if (log.status === 'IDLE') empStats[log.employee.id].idle += log.duration;
+        if (log.activityType === 'ACTIVE') empStats[log.employee.id].active += log.duration;
+        if (log.activityType === 'IDLE') empStats[log.employee.id].idle += log.duration;
+
+        if (log.productivity === 'PRODUCTIVE') empStats[log.employee.id].productive += log.duration;
+        if (log.productivity === 'UNPRODUCTIVE') empStats[log.employee.id].unproductive += log.duration;
     });
 
     manualLogs.forEach(log => {
         initEmp(log.employee);
         empStats[log.employee.id].manual += log.duration;
+        empStats[log.employee.id].productive += log.duration; // manual assumed productive
     });
 
     const rankings = Object.values(empStats).map(e => {
-        const prod = e.active + e.manual;
-        const total = prod + e.idle;
-        const util = total > 0 ? Math.round((prod / total) * 100) : 0;
+        const total = e.active + e.manual + e.idle; // Total logged tracking time
+        const util = total > 0 ? Math.round((e.productive / total) * 100) : 0;
         return {
             ...e,
-            productive: formatToHM(prod),
-            unproductive: formatToHM(e.idle),
+            productive: formatToHM(e.productive),
+            unproductive: formatToHM(e.unproductive || e.idle), // Fallback to idle if none specific
             utilization: util,
             _rawUtil: util // For sorting
         };
@@ -262,7 +276,13 @@ const getEmployeeDashboard = async (organizationId, employeeId, startDate = null
         }),
         prisma.task.findMany({ where: { organizationId, employeeId } }),
         prisma.screenshot.findMany({
-            where: { organizationId, employeeId },
+            where: { 
+                organizationId, 
+                employeeId,
+                imageUrl: {
+                    startsWith: '/uploads' // Only fetch real screenshots, ignore simulator dummy data
+                }
+            },
             take: 5,
             orderBy: { capturedAt: 'desc' }
         })

@@ -1,5 +1,6 @@
 const express = require('express');
 const cors = require('cors');
+const path = require('path');
 const routes = require('./routes');
 const errorMiddleware = require('./middlewares/error.middleware');
 
@@ -12,6 +13,9 @@ app.use(express.urlencoded({ limit: '10mb', extended: true }));
 
 // Routes
 app.use('/api', routes);
+
+// Serve Static files for uploads
+app.use('/uploads', express.static(path.join(__dirname, '../public/uploads')));
 
 // 404 handler
 app.use((req, res) => {

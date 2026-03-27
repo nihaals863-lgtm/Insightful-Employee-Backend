@@ -10,5 +10,7 @@ router.post('/', projectsController.createProject);
 router.get('/', projectsController.getProjects);
 router.post('/assign', projectsController.assignEmployees);
 router.post('/log-time', projectsController.logTime);
+router.put('/:id', projectsController.updateProject);
+router.delete('/:id', projectsController.deleteProject);
 
 module.exports = router;

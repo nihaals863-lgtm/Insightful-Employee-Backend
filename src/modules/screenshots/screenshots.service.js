@@ -7,9 +7,11 @@ class ScreenshotsService {
         });
     }
 
-    async getScreenshots(where) {
+    async getScreenshots(where, limit = 50, offset = 0) {
         return await prisma.screenshot.findMany({
             where,
+            take: limit,
+            skip: offset,
             include: {
                 employee: {
                     select: {

@@ -52,6 +52,26 @@ class ProjectsController {
             next(error);
         }
     }
+
+    async updateProject(req, res, next) {
+        try {
+            const { id } = req.params;
+            const project = await projectsService.updateProject(id, req.body);
+            return successResponse(res, project, 'Project updated successfully');
+        } catch (error) {
+            next(error);
+        }
+    }
+
+    async deleteProject(req, res, next) {
+        try {
+            const { id } = req.params;
+            await projectsService.deleteProject(id);
+            return successResponse(res, null, 'Project deleted successfully');
+        } catch (error) {
+            next(error);
+        }
+    }
 }
 
 module.exports = new ProjectsController();

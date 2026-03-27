@@ -2,16 +2,51 @@ const screenshotsService = require('./screenshots.service');
 const { successResponse, errorResponse } = require('../../utils/response');
 const { getOrganizationId } = require('../../utils/orgId');
 const prisma = require('../../config/db');
+const sharp = require('sharp');
+const fs = require('fs');
+const path = require('path');
 
 const screenshotsController = {
     // POST /api/screenshots
     createScreenshot: async (req, res) => {
         try {
-            const { employeeId, imageUrl, productivity, capturedAt } = req.body;
+            const { employeeId, productivity, capturedAt } = req.body;
+            let { imageUrl } = req.body; // Falback if they still send URL directly
             const organizationId = await getOrganizationId(req);
 
-            if (!employeeId || !imageUrl) {
-                return errorResponse(res, 'employeeId and imageUrl are required', 400);
+            if (!employeeId) {
+                return errorResponse(res, 'employeeId is required', 400);
+            }
+
+            if (!imageUrl && !req.file) {
+                 return errorResponse(res, 'imageUrl or image file is required', 400);
+            }
+
+            // If an image file was uploaded, process it
+            if (req.file) {
+                // Compress image and save to local disk
+                console.log('Received file upload, processing...');
+                const filename = `${Date.now()}-${Math.round(Math.random() * 1E9)}.webp`;
+                const uploadDir = path.join(__dirname, '../../../public/uploads/screenshots');
+                
+                if (!fs.existsSync(uploadDir)) {
+                    fs.mkdirSync(uploadDir, { recursive: true });
+                }
+
+                const filepath = path.join(uploadDir, filename);
+                const shouldBlur = req.body.blurred === 'true';
+
+                let imageProcessor = sharp(req.file.buffer);
+                
+                if (shouldBlur) {
+                    imageProcessor = imageProcessor.blur(15); // Consistent blur level
+                }
+
+                await imageProcessor
+                    .webp({ quality: 80 })
+                    .toFile(filepath);
+
+                imageUrl = `/uploads/screenshots/${filename}`;
             }
 
             const screenshot = await screenshotsService.createScreenshot({
@@ -19,6 +54,7 @@ const screenshotsController = {
                 organizationId,
                 imageUrl,
                 productivity: productivity || 'NEUTRAL',
+                blurred: req.body.blurred === 'true',
                 capturedAt: capturedAt ? new Date(capturedAt) : new Date(),
             });
 
@@ -65,7 +101,10 @@ const screenshotsController = {
                 where.capturedAt = { gte: start, lte: end };
             }
 
-            const screenshots = await screenshotsService.getScreenshots(where);
+            const parsedLimit = parseInt(limit, 10) || 50;
+            const parsedOffset = parseInt(offset, 10) || 0;
+
+            const screenshots = await screenshotsService.getScreenshots(where, parsedLimit, parsedOffset);
 
             return successResponse(res, screenshots, 'Screenshots fetched successfully');
         } catch (error) {
@@ -78,7 +117,7 @@ const screenshotsController = {
     getEmployeeScreenshots: async (req, res) => {
         try {
             const { employeeId } = req.params;
-            const { date } = req.query;
+            const { date, limit = 50, offset = 0 } = req.query;
             const organizationId = await getOrganizationId(req);
             const { role } = req.user;
 
@@ -92,7 +131,10 @@ const screenshotsController = {
                 where.capturedAt = { gte: start, lte: end };
             }
 
-            const screenshots = await screenshotsService.getScreenshots(where);
+            const parsedLimit = parseInt(limit, 10) || 50;
+            const parsedOffset = parseInt(offset, 10) || 0;
+
+            const screenshots = await screenshotsService.getScreenshots(where, parsedLimit, parsedOffset);
             return successResponse(res, screenshots, 'Employee screenshots fetched');
         } catch (error) {
             return errorResponse(res, error.message);

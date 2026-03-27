@@ -38,7 +38,7 @@ const attendanceService = {
             }
         }
 
-        return await prisma.attendance.create({
+        const attendance = await prisma.attendance.create({
             data: {
                 employeeId,
                 organizationId,
@@ -48,6 +48,14 @@ const attendanceService = {
                 late,
             }
         });
+
+        // Update employee status to ACTIVE
+        await prisma.employee.update({
+            where: { id: employeeId },
+            data: { status: 'ACTIVE' }
+        });
+
+        return attendance;
     },
 
     clockOut: async (employeeId) => {
@@ -69,13 +77,21 @@ const attendanceService = {
         const clockOutTime = new Date();
         const duration = Math.floor((clockOutTime - attendance.clockIn) / 1000); // in seconds
 
-        return await prisma.attendance.update({
+        const updatedAttendance = await prisma.attendance.update({
             where: { id: attendance.id },
             data: {
                 clockOut: clockOutTime,
                 duration,
             }
         });
+
+        // Update employee status to OFFLINE
+        await prisma.employee.update({
+            where: { id: employeeId },
+            data: { status: 'OFFLINE' }
+        });
+
+        return updatedAttendance;
     },
 
     getTimesheets: async (organizationId, filters = {}) => {
