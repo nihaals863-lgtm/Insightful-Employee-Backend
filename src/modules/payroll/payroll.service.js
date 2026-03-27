@@ -6,53 +6,68 @@ const prisma = require('../../config/db');
 const getPayrollSummary = async (organizationId, params = {}) => {
     const { userId, teamId, startDate, endDate } = params;
     
-    // Default dates if not provided
-    const start = startDate ? new Date(startDate) : new Date(new Date().setDate(new Date().getDate() - 30));
+    // Default: current month
+    const now = new Date();
+    const start = startDate ? new Date(startDate) : new Date(now.getFullYear(), now.getMonth(), 1);
     const end = endDate ? new Date(endDate) : new Date();
 
-    // 1. Build common filter for queries
     const employeeWhere = { organizationId };
     if (userId) employeeWhere.id = userId;
     else if (teamId) employeeWhere.teamId = teamId;
 
-    // 2. Get filtered employees
     const employees = await prisma.employee.findMany({
         where: employeeWhere,
         include: {
             attendance: {
                 where: { date: { gte: start, lte: end } }
+            },
+            manualTime: {
+                where: {
+                    startTime: { gte: start },
+                    endTime: { lte: end }
+                }
             }
         }
     });
 
-    // 3. Calculate real financial stats based on attendance logs
     let totalGross = 0;
     let totalHours = 0;
     
     employees.forEach(emp => {
-        const empSeconds = emp.attendance.reduce((acc, curr) => acc + (curr.duration || 0), 0);
-        const empHours = empSeconds / 3600;
+        // Attendance hours
+        const attSeconds = emp.attendance.reduce((acc, a) => acc + (a.duration || 0), 0);
+        // Manual time hours
+        const manualSeconds = (emp.manualTime || []).reduce((acc, m) => acc + (m.duration || 0), 0);
+        const empHours = (attSeconds + manualSeconds) / 3600;
+
         totalHours += empHours;
         totalGross += empHours * (emp.hourlyRate || 0);
     });
 
-    const avgRate = totalHours > 0 ? totalGross / totalHours : (employees.length > 0 ? employees.reduce((acc, e) => acc + (e.hourlyRate || 0), 0) / employees.length : 0);
+    const avgRate = employees.length > 0
+        ? employees.reduce((acc, e) => acc + (e.hourlyRate || 0), 0) / employees.length
+        : 0;
 
     return {
         totalPayroll: Math.round(totalGross * 100) / 100,
         avgHourlyRate: Math.round(avgRate * 10) / 10,
         staffCount: employees.length,
-        trend: 5.2, // Could be calculated comparing to previous period
+        trend: 5.2,
         avgRateTrend: 1.2,
     };
 };
 
 /**
- * Get payroll records for employees
+ * Get payroll records (timesheet + payslip data) for all employees in org
  */
 const getPayrollRecords = async (organizationId, startDate, endDate, params = {}) => {
     const { userId, teamId } = params;
     
+    // Default: current month
+    const now = new Date();
+    const start = startDate instanceof Date ? startDate : (startDate ? new Date(startDate) : new Date(now.getFullYear(), now.getMonth(), 1));
+    const end = endDate instanceof Date ? endDate : (endDate ? new Date(endDate) : new Date());
+
     const employeeWhere = { organizationId };
     if (userId) employeeWhere.id = userId;
     else if (teamId) employeeWhere.teamId = teamId;
@@ -61,32 +76,56 @@ const getPayrollRecords = async (organizationId, startDate, endDate, params = {}
         where: employeeWhere,
         include: {
             attendance: {
+                where: { date: { gte: start, lte: end } }
+            },
+            manualTime: {
                 where: {
-                    date: {
-                        gte: startDate,
-                        lte: endDate
-                    }
+                    startTime: { gte: start },
+                    endTime: { lte: end }
                 }
-            }
+            },
+            team: { select: { name: true } }
         }
     });
 
+    const periodLabel = `${start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${end.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`;
+
     return employees.map(emp => {
-        const totalSeconds = emp.attendance.reduce((acc, curr) => acc + curr.duration, 0);
+        // Attendance (clock-in/out) seconds
+        const attSeconds = emp.attendance.reduce((acc, a) => acc + (a.duration || 0), 0);
+        // Manual time seconds
+        const manualSeconds = (emp.manualTime || []).reduce((acc, m) => acc + (m.duration || 0), 0);
+
+        const totalSeconds = attSeconds + manualSeconds;
         const totalHours = Math.round((totalSeconds / 3600) * 100) / 100;
-        
-        // Use real hourly rate from DB
-        const rate = emp.hourlyRate || 50;
-        const grossPay = totalHours * rate;
-        
+
+        // Calculate overtime: anything over 8h/day is OT
+        const workDays = emp.attendance.length;
+        const regularSeconds = workDays * 8 * 3600;
+        const overtimeSeconds = Math.max(0, attSeconds - regularSeconds);
+        const overtimeHours = Math.round((overtimeSeconds / 3600) * 100) / 100;
+
+        const rate = emp.hourlyRate || 0;
+        const grossPay = Math.round(totalHours * rate * 100) / 100;
+
+        // Tax deductions: 20%
+        const deductions = Math.round(grossPay * 0.2 * 100) / 100;
+        const netPay = Math.round((grossPay - deductions) * 100) / 100;
+
         return {
             id: emp.id,
             employee: emp.fullName,
             role: emp.role,
+            team: emp.team?.name || 'No Team',
+            avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(emp.fullName)}&background=random`,
+            period: periodLabel,
             totalHours,
+            overTime: overtimeHours,
             hourlyRate: rate,
             grossPay,
-            status: totalHours > 0 ? 'Ready' : 'Pending'
+            deductions,
+            netPay,
+            status: totalHours > 0 ? 'Ready' : 'Pending',
         };
     });
 };
