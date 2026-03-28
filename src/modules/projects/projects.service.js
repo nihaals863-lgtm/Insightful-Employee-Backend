@@ -9,6 +9,7 @@ class ProjectsService {
                 data: {
                     name,
                     billableRate: parseFloat(billRate) || 0,
+                    budget: parseFloat(data.budget) || 0,
                     organizationId,
                 },
             });
@@ -31,7 +32,7 @@ class ProjectsService {
                 clockedTime: '00:00',
                 manualTime: '00:00',
                 billRate: project.billableRate,
-                totalCosts: (0).toFixed(2),
+                totalCosts: (parseFloat(data.budget) || 0).toFixed(2),
             };
         });
     }
@@ -73,7 +74,7 @@ class ProjectsService {
                 clockedTime: this.formatDuration(clockedSeconds),
                 manualTime: this.formatDuration(manualSeconds),
                 billRate: project.billableRate,
-                totalCosts: billableCost.toFixed(2),
+                totalCosts: (project.budget ?? 0).toFixed(2),
             };
         });
     }
@@ -110,6 +111,7 @@ class ProjectsService {
                 data: {
                     name,
                     billableRate: parseFloat(billRate) || 0,
+                    budget: parseFloat(data.budget) || 0,
                 },
             });
 
@@ -159,7 +161,7 @@ class ProjectsService {
                 clockedTime: this.formatDuration(clockedSeconds),
                 manualTime: this.formatDuration(manualSeconds),
                 billRate: fullProject.billableRate,
-                totalCosts: billableCost.toFixed(2),
+                totalCosts: (fullProject.budget ?? 0).toFixed(2),
             };
         });
     }

@@ -5,22 +5,29 @@ const { getOrganizationId } = require('../../utils/orgId');
 const attendanceController = {
     clockIn: async (req, res) => {
         try {
-            const { id: employeeId } = req.user;
+            // Fix: Extract employeeId directly from token payload instead of aliasing user.id
+            const { employeeId } = req.user;
+            if (!employeeId) throw new Error('User is not linked to an employee profile');
+            
             const organizationId = await getOrganizationId(req);
             const attendance = await attendanceService.clockIn(employeeId, organizationId);
             return successResponse(res, attendance, 'Clocked in successfully');
         } catch (error) {
-            return errorResponse(res, error.message);
+            const status = error.message.includes('Already clocked in') ? 400 : 500;
+            return errorResponse(res, error.message, status);
         }
     },
 
     clockOut: async (req, res) => {
         try {
-            const { id: employeeId } = req.user;
+            const { employeeId } = req.user;
+            if (!employeeId) throw new Error('User is not linked to an employee profile');
+            
             const attendance = await attendanceService.clockOut(employeeId);
             return successResponse(res, attendance, 'Clocked out successfully');
         } catch (error) {
-            return errorResponse(res, error.message);
+            const status = error.message.includes('No active clock-in') ? 400 : 500;
+            return errorResponse(res, error.message, status);
         }
     },
 

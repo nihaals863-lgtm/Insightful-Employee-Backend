@@ -105,6 +105,13 @@ const login = async (email, password) => {
         });
     }
 
+    // Get agent status for employees
+    let agentStatus = null;
+    if (user.role === 'EMPLOYEE' && user.employeeId) {
+        const { getAgentStatus } = require('../agent/agent.service');
+        agentStatus = await getAgentStatus(user.employeeId);
+    }
+
     return {
         token,
         user: {
@@ -117,6 +124,7 @@ const login = async (email, password) => {
             employeeId: user.employeeId,
             organizationId: user.employee?.organizationId,
             teamId: user.employee?.teamId,
+            agentStatus: agentStatus
         },
     };
 };
@@ -159,6 +167,12 @@ const getMe = async (userId) => {
             user.organizationId = user.employee.organizationId;
         }
         user.teamId = user.employee.teamId;
+        
+        // Add agent status
+        if (user.role === 'EMPLOYEE') {
+            const { getAgentStatus } = require('../agent/agent.service');
+            user.agentStatus = await getAgentStatus(user.employeeId);
+        }
     } else {
         // Provide fallbacks for users without employee record (like seeded admins)
         user.fullName = user.name || user.email.split('@')[0];

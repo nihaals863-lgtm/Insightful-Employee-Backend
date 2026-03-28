@@ -1,11 +1,12 @@
 const activityService = require('./activity.service');
 const { successResponse, errorResponse } = require('../../utils/response');
+const { getOrganizationId } = require('../../utils/orgId');
 
 const activityController = {
     createActivityLog: async (req, res) => {
         try {
             const { employeeId, activityType, duration, productivity, timestamp, appWebsite } = req.body;
-            const organizationId = req.user.organizationId; // From auth middleware
+            const organizationId = await getOrganizationId(req); // From auth middleware
 
             const log = await activityService.createActivityLog({
                 employeeId,
@@ -66,7 +67,7 @@ const activityController = {
 
     getOrganizationActivity: async (req, res) => {
         try {
-            const organizationId = req.user.organizationId;
+            const organizationId = await getOrganizationId(req);
             const { startDate, endDate } = req.query;
             const { role } = req.user;
 
@@ -84,7 +85,7 @@ const activityController = {
 
     getOrganizationSummary: async (req, res) => {
         try {
-            const organizationId = req.user.organizationId;
+            const organizationId = await getOrganizationId(req);
             const { startDate, endDate, teamId, employeeId } = req.query;
 
             if (!organizationId) {

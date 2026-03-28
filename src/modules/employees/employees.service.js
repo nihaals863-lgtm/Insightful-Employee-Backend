@@ -18,6 +18,11 @@ const getEmployees = async (organizationId, filter = {}) => {
                     email: true,
                     role: true
                 }
+            },
+            agent: true,
+            tracking: {
+                orderBy: { timestamp: 'desc' },
+                take: 1
             }
         },
         orderBy: {

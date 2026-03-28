@@ -17,20 +17,41 @@ const getEmployees = async (req, res, next) => {
         const employees = await employeesService.getEmployees(orgId, filter);
 
         // Map to industry/insightful format
-        const formattedEmployees = employees.map(emp => ({
-            id: emp.id,
-            name: emp.fullName, // Map fullName to name for frontend compatibility
-            email: emp.email,
-            team: emp.team ? emp.team.name : 'Unassigned',
-            location: emp.location,
-            status: emp.status.toLowerCase(),
-            avatar: emp.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(emp.fullName)}&background=random`,
-            role: emp.role,
-            organizationId: emp.organizationId,
-            teamId: emp.teamId,
-            computerType: emp.computerType,
-            hourlyRate: emp.hourlyRate
-        }));
+        const formattedEmployees = employees.map(emp => {
+            let agentStatus = 'inactive';
+            let lastSeen = null;
+            let currentActivity = 'Idle';
+
+            if (emp.agent) {
+                lastSeen = emp.agent.lastSeen;
+                const isRecent = new Date() - new Date(lastSeen) < 5 * 60 * 1000;
+                if (emp.agent.status === 'active' && isRecent) {
+                    agentStatus = 'active';
+                }
+            }
+
+            if (emp.tracking && emp.tracking.length > 0) {
+                currentActivity = emp.tracking[0].activityStatus || 'Idle';
+            }
+
+            return {
+                id: emp.id,
+                name: emp.fullName, // Map fullName to name for frontend compatibility
+                email: emp.email,
+                team: emp.team ? emp.team.name : 'Unassigned',
+                location: emp.location,
+                status: emp.status.toLowerCase(),
+                avatar: emp.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(emp.fullName)}&background=random`,
+                role: emp.role,
+                organizationId: emp.organizationId,
+                teamId: emp.teamId,
+                computerType: emp.computerType,
+                hourlyRate: emp.hourlyRate,
+                agentStatus,
+                lastSeen,
+                currentActivity
+            };
+        });
 
         res.status(200).json({
             success: true,
@@ -76,14 +97,20 @@ const inviteEmployee = async (req, res, next) => {
         }
         const validatedData = inviteEmployeeSchema.parse(req.body);
         
-        // 1. Create employee in DB (status: INVITED)
-        const employee = await employeesService.inviteEmployee(validatedData);
+        const role = validatedData.role || 'EMPLOYEE';
+        
+        let employee = null;
+        if (role === 'EMPLOYEE') {
+            // 1. Create employee in DB (status: INVITED) - ONLY for EMPLOYEE role
+            employee = await employeesService.inviteEmployee(validatedData);
+        }
         
         // 2. Generate invitation token and link
         const { setupLink } = await invitationService.sendInvitation(
             validatedData.email, 
-            'EMPLOYEE', // or validatedData.role if added to schema
-            validatedData.organizationId
+            role,
+            validatedData.organizationId,
+            validatedData.fullName
         );
 
         res.status(201).json({

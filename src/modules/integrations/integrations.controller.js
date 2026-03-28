@@ -1,12 +1,13 @@
 const integrationsService = require('./integrations.service');
 const { successResponse, errorResponse } = require('../../utils/response');
+const { getOrganizationId } = require('../../utils/orgId');
 
 /**
  * Get all integrations for the current user's organization
  */
 const getIntegrations = async (req, res) => {
     try {
-        const organizationId = req.user.organizationId;
+        const organizationId = await getOrganizationId(req);
         if (!organizationId) {
             return errorResponse(res, 'Organization ID is missing', 400);
         }
@@ -34,7 +35,7 @@ const getIntegrations = async (req, res) => {
  */
 const configureIntegration = async (req, res) => {
     try {
-        const organizationId = req.user.organizationId;
+        const organizationId = await getOrganizationId(req);
         const { integrationId } = req.params;
         const { config } = req.body;
 
@@ -61,7 +62,7 @@ const configureIntegration = async (req, res) => {
  */
 const disconnectIntegration = async (req, res) => {
     try {
-        const organizationId = req.user.organizationId;
+        const organizationId = await getOrganizationId(req);
         const { integrationId } = req.params;
 
         if (!organizationId) {

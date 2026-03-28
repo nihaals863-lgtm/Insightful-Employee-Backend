@@ -76,8 +76,9 @@ const screenshotsController = {
 
             // Role-based filtering
             if (role === 'EMPLOYEE') {
-                // Employee can only see own screenshots
+                // Employee can only see own screenshots (and only non-soft-deleted ones)
                 where.employeeId = userId;
+                where.deletedByEmployee = false;
             } else if (role === 'MANAGER') {
                 // Manager can see all screenshots in organization
                 where.organizationId = organizationId;
@@ -153,6 +154,41 @@ const screenshotsController = {
 
             return successResponse(res, screenshot, `Screenshot ${screenshot.blurred ? 'blurred' : 'unblurred'} successfully`);
         } catch (error) {
+            return errorResponse(res, error.message);
+        }
+    },
+
+    // DELETE /api/screenshots/:id
+    deleteScreenshot: async (req, res) => {
+        try {
+            const { id } = req.params;
+            const { role, employeeId: userId } = req.user;
+
+            // Find screenshot first
+            const screenshot = await screenshotsService.getScreenshotById(id);
+
+            if (!screenshot) {
+                return errorResponse(res, 'Screenshot not found', 404);
+            }
+
+            if (role === 'EMPLOYEE') {
+                // Employee can only soft-delete their OWN screenshots
+                if (screenshot.employeeId !== userId) {
+                    return errorResponse(res, 'Forbidden: You can only delete your own screenshots', 403);
+                }
+                await screenshotsService.softDeleteForEmployee(id);
+                return successResponse(res, null, 'Screenshot hidden from your view');
+            }
+
+            // ADMIN or MANAGER: hard-delete permanently from database
+            if (role === 'ADMIN' || role === 'MANAGER') {
+                await screenshotsService.deleteScreenshot(id);
+                return successResponse(res, null, 'Screenshot permanently deleted');
+            }
+
+            return errorResponse(res, 'Forbidden', 403);
+        } catch (error) {
+            console.error('Error deleting screenshot:', error);
             return errorResponse(res, error.message);
         }
     }

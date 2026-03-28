@@ -20,6 +20,9 @@ router.get('/employee/:employeeId', screenshotsController.getEmployeeScreenshots
 // PATCH /api/screenshots/:id/blur - Toggle blur
 router.patch('/:id/blur', screenshotsController.toggleBlur);
 
+// DELETE /api/screenshots/:id - Delete screenshot (role-based)
+router.delete('/:id', screenshotsController.deleteScreenshot);
+
 // Screenshot Settings
 const screenshotSettingsRoutes = require('./screenshotSettings.routes');
 router.use('/settings', screenshotSettingsRoutes);
