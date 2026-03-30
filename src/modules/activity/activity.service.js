@@ -152,6 +152,8 @@ const activityService = {
                     workHours: 0,
                     activeHours: 0,
                     idleHours: 0,
+                    breakHours: 0,
+                    manualHours: 0,
                     productiveHours: 0,
                     unproductiveHours: 0,
                     neutralHours: 0,
@@ -178,8 +180,8 @@ const activityService = {
             if (log.productivity === 'UNPRODUCTIVE') item.unproductiveHours += durationHrs;
             if (log.productivity === 'NEUTRAL') item.neutralHours += durationHrs;
 
-            // Total Work Hours (Active + Idle + Manual) - simplified
-            item.workHours = item.activeHours + item.idleHours;
+            // Total Work Hours (Active + Idle + Manual)
+            item.workHours = item.activeHours + item.idleHours + item.manualHours;
 
             // Hourly bucket
             const hour = log.timestamp.getHours();

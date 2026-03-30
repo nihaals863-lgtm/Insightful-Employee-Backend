@@ -2,6 +2,8 @@ const { Server } = require('socket.io');
 const { verifyToken } = require('../utils/jwt');
 const prisma = require('../config/db');
 const logger = require('../utils/logger');
+const activityService = require('../modules/activity/activity.service');
+const { APPS } = require('../modules/productivity/productivity.service');
 
 // In-memory cache for live employee sessions
 // Map: employeeId -> { socketId, organizationId, status, lastActivity }
@@ -108,7 +110,7 @@ const initSocketServer = (server) => {
             }
 
             try {
-                // Store in DB
+                // Store in DB (Live heartbeat)
                 await prisma.liveActivity.create({
                     data: {
                         employeeId,
@@ -119,6 +121,37 @@ const initSocketServer = (server) => {
                         mouseClicks: mouseClicks || 0,
                         idleTime: idleTime || 0
                     }
+                });
+
+                // --- AGGREGATION: Ingest into ActivityLog for Dashboard Metrics ---
+                
+                // 1. Determine Activity Type
+                const activityType = idleTime > 60 ? 'IDLE' : 'ACTIVE';
+                
+                // 2. Determine Productivity (Heuristic)
+                let productivity = 'NEUTRAL';
+                if (activityType === 'ACTIVE' && activeApp) {
+                    const knownApp = APPS.find(a => 
+                        activeApp.toLowerCase().includes(a.name.toLowerCase()) || 
+                        (a.domain && activeApp.toLowerCase().includes(a.domain.toLowerCase()))
+                    );
+                    if (knownApp) {
+                        productivity = knownApp.productivity;
+                    } else if (activeApp.toLowerCase().includes('visual studio') || activeApp.toLowerCase().includes('code')) {
+                        productivity = 'PRODUCTIVE';
+                    }
+                }
+
+                // 3. Create ActivityLog entry
+                // Using 30 seconds as duration for each heartbeat log
+                await activityService.createActivityLog({
+                    employeeId,
+                    organizationId,
+                    activityType,
+                    productivity,
+                    duration: 30, // 30 seconds per heartbeat
+                    appWebsite: activeApp || 'Unknown',
+                    timestamp: new Date()
                 });
 
                 // Broadcast to admin dashboard

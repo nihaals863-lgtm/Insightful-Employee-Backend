@@ -237,9 +237,9 @@ model ProjectAssignment {
 
 model ProjectTimeLog {
   id         String   @id @default(uuid())
-  project    Project  @relation(fields: [projectId], references: [id])
+  project    Project  @relation(fields: [projectId], references: [id], map: "ptl_project_id_fkey")
   projectId  String
-  employee   Employee @relation(fields: [employeeId], references: [id])
+  employee   Employee @relation(fields: [employeeId], references: [id], map: "ptl_employee_id_fkey")
   employeeId String
   duration   Int      // in seconds
   type       String   // "CLOCKED" or "MANUAL"
