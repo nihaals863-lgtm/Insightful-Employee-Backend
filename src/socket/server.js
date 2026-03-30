@@ -52,6 +52,9 @@ const initSocketServer = (server) => {
                 lastActivity: new Date()
             });
 
+            // Join employee-specific room for targeted signaling (WebRTC, etc)
+            socket.join(`employee_${employeeId}`);
+
             // Broadcast status update to admins/managers in the same org
             io.to(`org_${organizationId}`).emit('employee:status', {
                 employeeId,
@@ -63,6 +66,20 @@ const initSocketServer = (server) => {
         if (organizationId) {
             socket.join(`org_${organizationId}`);
         }
+
+        // Handle Status Override (like 'ON_BREAK')
+        socket.on('employee:status_override', async ({ status }) => {
+            if (!employeeId) return;
+            const session = liveSessions.get(employeeId);
+            if (session) {
+                session.status = status;
+                session.lastActivity = new Date(); // Reset timeout
+                io.to(`org_${organizationId}`).emit('employee:status', {
+                    employeeId,
+                    status
+                });
+            }
+        });
 
         // Handle Live Activity
         socket.on('employee:activity', async (data) => {
@@ -77,9 +94,9 @@ const initSocketServer = (server) => {
                 
                 // Status logic: 
                 // idleTime is in seconds from host. 
-                // Logic per PRD: lastActivity < 1m -> ONLINE, < 5m -> IDLE, > 5m -> OFFLINE
-                // However, since we receive real-time events, we can use idleTime directly if available.
-                const newStatus = idleTime > 300 ? 'OFFLINE' : (idleTime > 60 ? 'IDLE' : 'ONLINE');
+                // If the user manually set status to BREAK, we preserve it unless activity explicitly resumes 'ONLINE' 
+                // However, real-time events can override it if we only rely on idleTime. Let's only override if not BREAK.
+                let newStatus = session.status === 'BREAK' ? 'BREAK' : (idleTime > 300 ? 'OFFLINE' : (idleTime > 60 ? 'IDLE' : 'ONLINE'));
                 
                 if (session.status !== newStatus) {
                     session.status = newStatus;
@@ -122,6 +139,51 @@ const initSocketServer = (server) => {
             io.to(`org_${organizationId}`).emit('screenshot:new', data);
         });
 
+        // ─── WebRTC Live Monitoring Events ───────────────────────────────────
+        
+        // 1. Admin requests to view live: Admin -> Employee (Broadcasting to all sessions of this employee)
+        socket.on('live:request', ({ employeeId }) => {
+            if (role !== 'ADMIN' && role !== 'MANAGER') return;
+            
+            // Emit to the entire employee room so that any active tracker session can respond
+            io.to(`employee_${employeeId}`).emit('live:request', { requesterId: socket.id });
+            logger.info(`Live request from ${socket.id} to employee room employee_${employeeId}`);
+        });
+
+        // 2. Employee sends offer: Employee -> Requester (Admin)
+        socket.on('live:offer', ({ requesterId, offer }) => {
+            if (!employeeId) return;
+            // Include fromId so admin knows which specific socket to answer to
+            io.to(requesterId).emit('live:offer', { employeeId, offer, fromId: socket.id });
+        });
+
+        // 3. Admin sends answer: Admin -> Employee
+        socket.on('live:answer', ({ employeeId, answer, targetId }) => {
+            if (role !== 'ADMIN' && role !== 'MANAGER') return;
+            
+            // If we have a specific target socket (from the offer), use it
+            if (targetId) {
+                io.to(targetId).emit('live:answer', { answer });
+            } else {
+                // Fallback to room or first session (less reliable)
+                const session = liveSessions.get(employeeId);
+                if (session && session.socketId) {
+                    io.to(session.socketId).emit('live:answer', { answer });
+                }
+            }
+        });
+
+        // 4. ICE Candidates exchange: Bidirectional
+        socket.on('live:candidate', ({ targetId, candidate, forEmployeeId }) => {
+            if (targetId) {
+                // Point-to-point delivery
+                io.to(targetId).emit('live:candidate', { candidate, employeeId: forEmployeeId });
+            } else if (forEmployeeId) {
+                // Fallback to rooms for employee-targeted candidates
+                io.to(`employee_${forEmployeeId}`).emit('live:candidate', { candidate });
+            }
+        });
+
         socket.on('disconnect', () => {
             logger.info(`Socket disconnected: ${socket.id}`);
             
@@ -134,6 +196,28 @@ const initSocketServer = (server) => {
                         employeeId,
                         status: 'OFFLINE'
                     });
+
+                    // Auto Clock-Out mechanism after a short grace period (e.g., 2 minutes)
+                    if (role === 'EMPLOYEE') {
+                        setTimeout(async () => {
+                            // Check if the user reconnected during the grace period
+                            const reconnectedSession = liveSessions.get(employeeId);
+                            if (!reconnectedSession) {
+                                try {
+                                    const attendanceService = require('../modules/attendance/attendance.service');
+                                    logger.info(`Auto clocking out employee ${employeeId} due to disconnect grace period expiry`);
+                                    await attendanceService.clockOut(employeeId);
+                                    
+                                    // Notify the organization that this session was ended
+                                    io.to(`org_${organizationId}`).emit('attendance:auto_clockout', { employeeId });
+                                } catch (err) {
+                                    if (!err.message.includes('No active clock-in session found')) {
+                                        logger.error(`Error auto clocking out employee ${employeeId}:`, err);
+                                    }
+                                }
+                            }
+                        }, 2 * 60 * 1000); // 2 minutes grace period
+                    }
                 }
             }
         });

@@ -171,6 +171,7 @@ const activityService = {
             // Types
             if (log.activityType === 'ACTIVE') item.activeHours += durationHrs;
             if (log.activityType === 'IDLE') item.idleHours += durationHrs;
+            if (log.activityType === 'BREAK') item.breakHours += durationHrs;
 
             // Productivity
             if (log.productivity === 'PRODUCTIVE') item.productiveHours += durationHrs;
@@ -184,6 +185,7 @@ const activityService = {
             const hour = log.timestamp.getHours();
             if (log.activityType === 'ACTIVE') item.intradayBuckets[hour].active += durationHrs;
             if (log.activityType === 'IDLE') item.intradayBuckets[hour].idle += durationHrs;
+            if (log.activityType === 'BREAK') item.intradayBuckets[hour].break += durationHrs;
         });
 
         // Calculate percentages
@@ -226,6 +228,7 @@ const activityService = {
             const durationHrs = log.duration / 3600;
             if (log.activityType === 'ACTIVE') summary.activeHours += durationHrs;
             if (log.activityType === 'IDLE') summary.idleHours += durationHrs;
+            if (log.activityType === 'BREAK') summary.breakHours = (summary.breakHours || 0) + durationHrs;
             if (log.productivity === 'PRODUCTIVE') summary.productiveHours += durationHrs;
             if (log.productivity === 'UNPRODUCTIVE') summary.unproductiveHours += durationHrs;
         });

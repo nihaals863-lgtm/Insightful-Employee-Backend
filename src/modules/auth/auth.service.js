@@ -110,6 +110,13 @@ const login = async (email, password) => {
     if (user.role === 'EMPLOYEE' && user.employeeId) {
         const { getAgentStatus } = require('../agent/agent.service');
         agentStatus = await getAgentStatus(user.employeeId);
+        
+        // Fetch active attendance session (any open session for this employee)
+        const activeAttendance = await prisma.attendance.findFirst({
+            where: { employeeId: user.employeeId, clockOut: null },
+            orderBy: { clockIn: 'desc' }
+        });
+        user.activeAttendance = activeAttendance;
     }
 
     return {
@@ -124,7 +131,8 @@ const login = async (email, password) => {
             employeeId: user.employeeId,
             organizationId: user.employee?.organizationId,
             teamId: user.employee?.teamId,
-            agentStatus: agentStatus
+            agentStatus: agentStatus,
+            activeAttendance: user.activeAttendance
         },
     };
 };
@@ -172,6 +180,12 @@ const getMe = async (userId) => {
         if (user.role === 'EMPLOYEE') {
             const { getAgentStatus } = require('../agent/agent.service');
             user.agentStatus = await getAgentStatus(user.employeeId);
+            
+            // Add active attendance (any open session)
+            user.activeAttendance = await prisma.attendance.findFirst({
+                where: { employeeId: user.employeeId, clockOut: null },
+                orderBy: { clockIn: 'desc' }
+            });
         }
     } else {
         // Provide fallbacks for users without employee record (like seeded admins)

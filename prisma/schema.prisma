@@ -18,6 +18,7 @@ enum ActivityType {
   IDLE
   MANUAL
   SYSTEM
+  BREAK
 }
 
 enum ProductivityType {
@@ -27,6 +28,13 @@ enum ProductivityType {
 }
 
 enum TaskStatus {
+  WORKING_ON_IT
+  DONE
+  STUCK
+  WAITING
+  FOR_CLIENT_REVIEW
+  WAIT_DETAILS
+  WAIT_VSS_CERT
   BACKLOG
   IN_PROGRESS
   QA
@@ -79,6 +87,7 @@ enum EmployeeStatus {
   ACTIVE
   OFFLINE
   IDLE
+  BREAK
   DEACTIVATED
   MERGED
 }

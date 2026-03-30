@@ -23,7 +23,6 @@ const integrationsRoutes = require('../modules/integrations/integrations.routes'
 const trackingRoutes = require('../modules/tracking/tracking.routes');
 const agentRoutes = require('../modules/agent/agent.routes');
 const goalsRoutes = require('../modules/goals/goals.routes');
-const videosRoutes = require('../modules/videos/videos.routes');
 const { successResponse } = require('../utils/response');
 
 // Routes
@@ -50,7 +49,7 @@ router.use('/integrations', integrationsRoutes);
 router.use('/tracking', trackingRoutes);
 router.use('/agent', agentRoutes);
 router.use('/goals', goalsRoutes);
-router.use('/videos', videosRoutes);
+
 router.get('/health', (req, res) => {
     return successResponse(res, null, 'Backend Running', 200);
 });

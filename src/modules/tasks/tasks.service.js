@@ -85,6 +85,13 @@ class TasksService {
         
         // Group tasks by status for the Kanban board
         const board = {
+            WORKING_ON_IT: [],
+            DONE: [],
+            STUCK: [],
+            WAITING: [],
+            FOR_CLIENT_REVIEW: [],
+            WAIT_DETAILS: [],
+            WAIT_VSS_CERT: [],
             BACKLOG: [],
             IN_PROGRESS: [],
             QA: [],
