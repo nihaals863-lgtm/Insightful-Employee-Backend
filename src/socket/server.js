@@ -47,20 +47,27 @@ const initSocketServer = (server) => {
 
         // Handle Employee Connection
         if (employeeId) {
-            liveSessions.set(employeeId, {
-                socketId: socket.id,
-                organizationId,
-                status: 'ONLINE',
-                lastActivity: new Date()
-            });
+            // Fetch current status from DB instead of assuming ONLINE
+            prisma.employee.findUnique({
+                where: { id: employeeId },
+                select: { status: true }
+            }).then(emp => {
+                const initialStatus = emp?.status || 'ONLINE';
+                liveSessions.set(employeeId, {
+                    socketId: socket.id,
+                    organizationId,
+                    status: initialStatus,
+                    lastActivity: new Date()
+                });
 
-            // Join employee-specific room for targeted signaling (WebRTC, etc)
-            socket.join(`employee_${employeeId}`);
+                // Join employee-specific room
+                socket.join(`employee_${employeeId}`);
 
-            // Broadcast status update to admins/managers in the same org
-            io.to(`org_${organizationId}`).emit('employee:status', {
-                employeeId,
-                status: 'ONLINE'
+                // Broadcast status update to admins/managers
+                io.to(`org_${organizationId}`).emit('employee:status', {
+                    employeeId,
+                    status: initialStatus
+                });
             });
         }
 
@@ -95,9 +102,11 @@ const initSocketServer = (server) => {
                 session.lastActivity = new Date();
                 
                 // Status logic: 
-                // idleTime is in seconds from host. 
-                // If the user manually set status to BREAK, we preserve it unless activity explicitly resumes 'ONLINE' 
-                // However, real-time events can override it if we only rely on idleTime. Let's only override if not BREAK.
+                // If user is on BREAK, only return to ONLINE if idleTime is low AND we want to auto-resume
+                // In this system, we prefer manual RESUME, so keep BREAK if it's set.
+                // Guard: If status is DEACTIVATED, don't auto-update it
+                if (session.status === 'DEACTIVATED') return;
+
                 let newStatus = session.status === 'BREAK' ? 'BREAK' : (idleTime > 300 ? 'OFFLINE' : (idleTime > 60 ? 'IDLE' : 'ONLINE'));
                 
                 if (session.status !== newStatus) {
@@ -225,10 +234,13 @@ const initSocketServer = (server) => {
                 if (session && session.socketId === socket.id) {
                     liveSessions.delete(employeeId);
                     
-                    io.to(`org_${organizationId}`).emit('employee:status', {
-                        employeeId,
-                        status: 'OFFLINE'
-                    });
+                    // Guard: Don't emit OFFLINE if already DEACTIVATED
+                    if (session.status !== 'DEACTIVATED') {
+                        io.to(`org_${organizationId}`).emit('employee:status', {
+                            employeeId,
+                            status: 'OFFLINE'
+                        });
+                    }
 
                     // Auto Clock-Out mechanism after a short grace period (e.g., 2 minutes)
                     if (role === 'EMPLOYEE') {
@@ -259,7 +271,26 @@ const initSocketServer = (server) => {
     return io;
 };
 
+/**
+ * Update a session status from outside (e.g., AttendanceService)
+ */
+const updateSessionStatus = (employeeId, status) => {
+    const session = liveSessions.get(employeeId);
+    if (session) {
+        session.status = status;
+        session.lastActivity = new Date();
+        if (ioInstance) {
+            ioInstance.to(`org_${session.organizationId}`).emit('employee:status', {
+                employeeId,
+                status
+            });
+        }
+        return true;
+    }
+    return false;
+};
+
 const getLiveSessions = () => liveSessions;
 const getIO = () => ioInstance;
 
-module.exports = { initSocketServer, getLiveSessions, getIO };
+module.exports = { initSocketServer, getLiveSessions, getIO, updateSessionStatus };

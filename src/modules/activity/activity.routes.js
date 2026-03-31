@@ -10,6 +10,7 @@ router.use(authenticate);
 router.post('/log', activityController.createActivityLog);
 router.get('/employee/:employeeId', activityController.getEmployeeActivity);
 router.get('/team/:teamId', activityController.getTeamActivity);
+router.get('/team/:teamId/summary', activityController.getTeamSummary);
 router.get('/employee/:employeeId/summary', activityController.getEmployeeSummary);
 router.get('/organization', authorize(['ADMIN', 'MANAGER']), activityController.getOrganizationActivity);
 router.get('/summary', authorize(['ADMIN', 'MANAGER']), activityController.getOrganizationSummary);

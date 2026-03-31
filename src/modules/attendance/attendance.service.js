@@ -1,5 +1,5 @@
 const prisma = require('../../config/db');
-const { getIO } = require('../../socket/server');
+const { getIO, updateSessionStatus } = require('../../socket/server');
 
 const attendanceService = {
     clockIn: async (employeeId, organizationId) => {
@@ -50,11 +50,14 @@ const attendanceService = {
             }
         });
 
-        // Update employee status to ACTIVE
-        await prisma.employee.update({
-            where: { id: employeeId },
-            data: { status: 'ACTIVE' }
-        });
+        // Update employee status to ACTIVE (Guard: Ensure not deactivated)
+        const employee = await prisma.employee.findUnique({ where: { id: employeeId }, select: { status: true } });
+        if (employee && employee.status !== 'DEACTIVATED') {
+            await prisma.employee.update({
+                where: { id: employeeId },
+                data: { status: 'ACTIVE' }
+            });
+        }
 
         // Emit real-time events
         const io = getIO();
@@ -94,11 +97,14 @@ const attendanceService = {
             }
         });
 
-        // Update employee status to OFFLINE
-        await prisma.employee.update({
-            where: { id: employeeId },
-            data: { status: 'OFFLINE' }
-        });
+        // Update employee status to OFFLINE (Guard: Ensure not deactivated)
+        const employeeInfo = await prisma.employee.findUnique({ where: { id: employeeId }, select: { status: true } });
+        if (employeeInfo && employeeInfo.status !== 'DEACTIVATED') {
+            await prisma.employee.update({
+                where: { id: employeeId },
+                data: { status: 'OFFLINE' }
+            });
+        }
 
         // Emit real-time events
         const io = getIO();
@@ -146,7 +152,7 @@ const attendanceService = {
         const end = new Date(`${endDate} ${endTime}`);
         const duration = Math.floor((end - start) / 1000);
 
-        return await prisma.manualTime.create({
+        const manualTime = await prisma.manualTime.create({
             data: {
                 employeeId,
                 organizationId,
@@ -158,6 +164,14 @@ const attendanceService = {
                 note: description,
             }
         });
+
+        // Emit real-time event
+        const io = getIO();
+        if (io) {
+            io.to(`org_${organizationId}`).emit('attendance:update', { employeeId, type: 'manual-time' });
+        }
+
+        return manualTime;
     },
 
     getManualTimes: async (filters) => {
@@ -205,7 +219,7 @@ const attendanceService = {
     },
 
     createShift: async (data) => {
-        return await prisma.shift.create({
+        const shift = await prisma.shift.create({
             data: {
                 employeeId: data.employeeId,
                 organizationId: data.organizationId,
@@ -215,10 +229,18 @@ const attendanceService = {
             },
             include: { employee: { select: { fullName: true } } }
         });
+
+        // Emit real-time event
+        const io = getIO();
+        if (io) {
+            io.to(`org_${data.organizationId}`).emit('attendance:update', { employeeId: data.employeeId, type: 'shift-new' });
+        }
+
+        return shift;
     },
 
     createTimeOff: async (data) => {
-        return await prisma.timeOff.create({
+        const timeOff = await prisma.timeOff.create({
             data: {
                 employeeId: data.employeeId,
                 organizationId: data.organizationId,
@@ -232,6 +254,14 @@ const attendanceService = {
             },
             include: { employee: { select: { fullName: true } } }
         });
+
+        // Emit real-time event
+        const io = getIO();
+        if (io) {
+            io.to(`org_${data.organizationId}`).emit('attendance:update', { employeeId: data.employeeId, type: 'time-off-new' });
+        }
+
+        return timeOff;
     },
 
     getTimeOffs: async (organizationId, filters = {}) => {
@@ -263,6 +293,12 @@ const attendanceService = {
 
         try {
             // Update employee status to BREAK (Must match Enum exactly: BREAK)
+            // Guard: Ensure not deactivated
+            const emp = await prisma.employee.findUnique({ where: { id: employeeId }, select: { status: true } });
+            if (emp && emp.status === 'DEACTIVATED') {
+                throw new Error('Deactivated employees cannot start a break');
+            }
+
             await prisma.employee.update({
                 where: { id: employeeId },
                 data: { status: 'BREAK' }
@@ -282,9 +318,11 @@ const attendanceService = {
             });
 
             // Notify real-time
+            updateSessionStatus(employeeId, 'BREAK');
+
             const io = getIO();
             if (io) {
-                io.to(`org_${organizationId}`).emit('employee:status', { employeeId, status: 'BREAK' });
+                // We still emit these for backward compatibility or direct listeners
                 io.to(`org_${organizationId}`).emit('attendance:update', { employeeId, type: 'break-start' });
             }
 
@@ -318,11 +356,14 @@ const attendanceService = {
         console.log(`[AttendanceService] Ending break for employee: ${employeeId}, org: ${employee.organizationId}`);
 
         try {
-            // Update employee status back to ACTIVE
-            await prisma.employee.update({
-                where: { id: employeeId },
-                data: { status: 'ACTIVE' }
-            });
+            // Update employee status back to ACTIVE (Guard: Ensure not deactivated)
+            const empInfo = await prisma.employee.findUnique({ where: { id: employeeId }, select: { status: true } });
+            if (empInfo && empInfo.status !== 'DEACTIVATED') {
+                await prisma.employee.update({
+                    where: { id: employeeId },
+                    data: { status: 'ACTIVE' }
+                });
+            }
 
             // Find the last BREAK activity log for this employee that has 0 duration
             const lastBreak = await prisma.activityLog.findFirst({
@@ -344,9 +385,10 @@ const attendanceService = {
             }
 
             // Notify real-time
+            updateSessionStatus(employeeId, 'ACTIVE');
+
             const io = getIO();
             if (io) {
-                io.to(`org_${employee.organizationId}`).emit('employee:status', { employeeId, status: 'ACTIVE' });
                 io.to(`org_${employee.organizationId}`).emit('attendance:update', { employeeId, type: 'break-end' });
             }
 

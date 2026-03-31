@@ -1,11 +1,12 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
+const { getIO } = require('../../socket/server');
 
 class GoalsService {
     async createGoal(data, organizationId) {
         const { title, sub, targetDate, color, stakeholders } = data;
         
-        return await prisma.goal.create({
+        const goal = await prisma.goal.create({
             data: {
                 title,
                 sub,
@@ -29,6 +30,14 @@ class GoalsService {
                 activities: true
             }
         });
+
+        // Emit real-time event
+        const io = getIO();
+        if (io) {
+            io.to(`org_${organizationId}`).emit('goal:new', goal);
+        }
+
+        return goal;
     }
 
     async getGoals(organizationId, filter = {}) {
@@ -96,7 +105,7 @@ class GoalsService {
             });
         }
 
-        return await prisma.goal.update({
+        const goal = await prisma.goal.update({
             where: { id },
             data: {
                 title,
@@ -114,6 +123,14 @@ class GoalsService {
                 }
             }
         });
+
+        // Emit real-time event
+        const io = getIO();
+        if (io && goal) {
+            io.to(`org_${goal.organizationId}`).emit('goal:update', goal);
+        }
+
+        return goal;
     }
 
     async deleteGoal(id) {

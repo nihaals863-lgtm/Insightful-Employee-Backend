@@ -1,4 +1,5 @@
 const prisma = require('../../config/db');
+const { getIO } = require('../../socket/server');
 
 class ProjectsService {
     async createProject(data, organizationId) {
@@ -8,6 +9,7 @@ class ProjectsService {
             const project = await tx.project.create({
                 data: {
                     name,
+                    description: data.description,
                     billableRate: parseFloat(billRate) || 0,
                     budget: parseFloat(data.budget) || 0,
                     organizationId,
@@ -23,7 +25,7 @@ class ProjectsService {
                 });
             }
 
-            return {
+            const result = {
                 id: project.id,
                 projectName: project.name,
                 assignees: employeeIds?.length || 0,
@@ -34,6 +36,14 @@ class ProjectsService {
                 billRate: project.billableRate,
                 totalCosts: (parseFloat(data.budget) || 0).toFixed(2),
             };
+
+            // Emit real-time event
+            const io = getIO();
+            if (io) {
+                io.to(`org_${organizationId}`).emit('project:update', { projectId: project.id, type: 'new' });
+            }
+
+            return result;
         });
     }
 
@@ -45,6 +55,17 @@ class ProjectsService {
                     include: {
                         employee: true,
                     },
+                },
+                tasks: {
+                    include: {
+                        employee: {
+                            select: {
+                                id: true,
+                                fullName: true,
+                                avatar: true
+                            }
+                        }
+                    }
                 },
                 timeLogs: true,
                 _count: {
@@ -65,16 +86,21 @@ class ProjectsService {
             const totalHours = totalSeconds / 3600;
             const billableCost = totalHours * project.billableRate;
 
+            // Calculate unique employees assigned to tasks
+            const taskAssigneeIds = new Set(project.tasks.map(t => t.employeeId).filter(id => !!id));
+            
             return {
                 id: project.id,
                 projectName: project.name,
-                assignees: project.assignments.length,
+                assignees: taskAssigneeIds.size, // Updated logic: count task assignees
                 tasks: project._count.tasks,
+                tasksData: project.tasks,
                 totalTime: this.formatDuration(totalSeconds),
                 clockedTime: this.formatDuration(clockedSeconds),
                 manualTime: this.formatDuration(manualSeconds),
                 billRate: project.billableRate,
                 totalCosts: (project.budget ?? 0).toFixed(2),
+                description: project.description,
             };
         });
     }
@@ -110,6 +136,7 @@ class ProjectsService {
                 where: { id },
                 data: {
                     name,
+                    description: data.description,
                     billableRate: parseFloat(billRate) || 0,
                     budget: parseFloat(data.budget) || 0,
                 },
@@ -136,6 +163,17 @@ class ProjectsService {
                 where: { id },
                 include: {
                     assignments: { include: { employee: true } },
+                    tasks: {
+                        include: {
+                            employee: {
+                                select: {
+                                    id: true,
+                                    fullName: true,
+                                    avatar: true
+                                }
+                            }
+                        }
+                    },
                     timeLogs: true,
                     _count: { select: { tasks: true } }
                 }
@@ -149,20 +187,29 @@ class ProjectsService {
                 .filter(log => log.type === 'MANUAL')
                 .reduce((acc, log) => acc + log.duration, 0);
 
-            const totalHours = totalSeconds / 3600;
-            const billableCost = totalHours * fullProject.billableRate;
+            const taskAssigneeIds = new Set(fullProject.tasks.map(t => t.employeeId).filter(id => !!id));
 
-            return {
+            const result = {
                 id: fullProject.id,
                 projectName: fullProject.name,
-                assignees: fullProject.assignments.length,
+                assignees: taskAssigneeIds.size,
                 tasks: fullProject._count.tasks,
+                tasksData: fullProject.tasks,
                 totalTime: this.formatDuration(totalSeconds),
                 clockedTime: this.formatDuration(clockedSeconds),
                 manualTime: this.formatDuration(manualSeconds),
                 billRate: fullProject.billableRate,
                 totalCosts: (fullProject.budget ?? 0).toFixed(2),
+                description: fullProject.description,
             };
+
+            // Emit real-time event
+            const io = getIO();
+            if (io) {
+                io.to(`org_${fullProject.organizationId}`).emit('project:update', { projectId: id, type: 'update' });
+            }
+
+            return result;
         });
     }
 
@@ -173,9 +220,17 @@ class ProjectsService {
             await tx.projectTimeLog.deleteMany({ where: { projectId: id } });
             await tx.task.deleteMany({ where: { projectId: id } }); // Optional, but tasks usually belong to projects
             
-            return await tx.project.delete({
+            const project = await tx.project.delete({
                 where: { id },
             });
+
+            // Emit real-time event
+            const io = getIO();
+            if (io) {
+                io.to(`org_${project.organizationId}`).emit('project:update', { projectId: id, type: 'delete' });
+            }
+
+            return project;
         });
     }
 

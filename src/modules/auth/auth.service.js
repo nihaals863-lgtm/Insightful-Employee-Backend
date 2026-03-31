@@ -62,9 +62,20 @@ const login = async (email, password) => {
     });
 
     if (!user) {
-        // Log failed login (no user found)
-        // Note: In a real app, you might want to log this without organizationId if not found
         throw new Error('Invalid email or password');
+    }
+
+    // Check if account is deactivated
+    if (user.employee && user.employee.status.toUpperCase() === 'DEACTIVATED') {
+        const { createAuditLog } = require('../../utils/audit.util');
+        await createAuditLog({
+            organizationId: user.employee?.organizationId,
+            userId: user.employeeId,
+            action: 'User Login',
+            status: 'Denied',
+            metadata: { reason: 'Account de-activated' }
+        });
+        throw new Error('Your account has been deactivated. Please contact your administrator.');
     }
 
     const isPasswordValid = await bcrypt.compare(password, user.password);

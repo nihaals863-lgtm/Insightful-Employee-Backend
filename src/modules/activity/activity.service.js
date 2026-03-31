@@ -20,6 +20,7 @@ const activityService = {
                 duration: data.duration,
                 timestamp: data.timestamp ? new Date(data.timestamp) : new Date(),
                 appWebsite: data.appWebsite || 'Unknown',
+                taskId: data.taskId || null,
             },
         });
     },
@@ -106,9 +107,14 @@ const activityService = {
         };
 
         if (startDate && endDate) {
+            const start = new Date(startDate);
+            start.setHours(0, 0, 0, 0);
+            const end = new Date(endDate);
+            end.setHours(23, 59, 59, 999);
+
             where.timestamp = {
-                gte: new Date(startDate),
-                lte: new Date(endDate),
+                gte: start,
+                lte: end,
             };
         }
 
@@ -157,6 +163,8 @@ const activityService = {
                     productiveHours: 0,
                     unproductiveHours: 0,
                     neutralHours: 0,
+                    taskHours: {}, // { taskId: duration }
+                    breakStartedAt: null,
                     intradayBuckets: Array.from({ length: 24 }, (_, i) => ({
                         name: `${String(i).padStart(2, '0')}:00`,
                         active: 0,
@@ -173,12 +181,27 @@ const activityService = {
             // Types
             if (log.activityType === 'ACTIVE') item.activeHours += durationHrs;
             if (log.activityType === 'IDLE') item.idleHours += durationHrs;
-            if (log.activityType === 'BREAK') item.breakHours += durationHrs;
+            if (log.activityType === 'MANUAL') item.manualHours += durationHrs;
+            if (log.activityType === 'BREAK') {
+                item.breakHours += durationHrs;
+                if (log.duration === 0) {
+                    // Current active break
+                    if (!item.breakStartedAt || new Date(log.timestamp) > new Date(item.breakStartedAt)) {
+                        item.breakStartedAt = log.timestamp;
+                    }
+                }
+            }
 
             // Productivity
             if (log.productivity === 'PRODUCTIVE') item.productiveHours += durationHrs;
             if (log.productivity === 'UNPRODUCTIVE') item.unproductiveHours += durationHrs;
             if (log.productivity === 'NEUTRAL') item.neutralHours += durationHrs;
+            
+            // Task Specific Time
+            if (log.taskId) {
+                if (!item.taskHours[log.taskId]) item.taskHours[log.taskId] = 0;
+                item.taskHours[log.taskId] += durationHrs;
+            }
 
             // Total Work Hours (Active + Idle + Manual)
             item.workHours = item.activeHours + item.idleHours + item.manualHours;
@@ -208,6 +231,57 @@ const activityService = {
         };
 
         if (startDate && endDate) {
+            const start = new Date(startDate);
+            start.setHours(0, 0, 0, 0);
+            const end = new Date(endDate);
+            end.setHours(23, 59, 59, 999);
+
+            where.timestamp = {
+                gte: start,
+                lte: end,
+            };
+        }
+
+        const logs = await prisma.activityLog.findMany({
+            where,
+        });
+
+        const summary = {
+            activeHours: 0,
+            idleHours: 0,
+            productiveHours: 0,
+            unproductiveHours: 0,
+            totalHours: 0,
+            taskHours: {} // { taskId: duration }
+        };
+
+        logs.forEach(log => {
+            const durationHrs = log.duration / 3600;
+            if (log.activityType === 'ACTIVE') summary.activeHours += durationHrs;
+            if (log.activityType === 'IDLE') summary.idleHours += durationHrs;
+            if (log.activityType === 'BREAK') summary.breakHours = (summary.breakHours || 0) + durationHrs;
+            if (log.productivity === 'PRODUCTIVE') summary.productiveHours += durationHrs;
+            if (log.productivity === 'UNPRODUCTIVE') summary.unproductiveHours += durationHrs;
+            
+            // Task Specific Time
+            if (log.taskId) {
+                if (!summary.taskHours[log.taskId]) summary.taskHours[log.taskId] = 0;
+                summary.taskHours[log.taskId] += durationHrs;
+            }
+        });
+
+        summary.totalHours = summary.activeHours + summary.idleHours;
+        summary.productivityPct = summary.activeHours > 0 ? Math.round((summary.productiveHours / summary.activeHours) * 100) : 0;
+        summary.utilizationPct = summary.totalHours > 0 ? Math.round((summary.activeHours / summary.totalHours) * 100) : 0;
+
+        return summary;
+    },
+    getTeamSummary: async (teamId, startDate, endDate) => {
+        const where = {
+            employee: { teamId: teamId },
+        };
+
+        if (startDate && endDate) {
             where.timestamp = {
                 gte: new Date(startDate),
                 lte: new Date(endDate),
@@ -221,26 +295,29 @@ const activityService = {
         const summary = {
             activeHours: 0,
             idleHours: 0,
+            manualHours: 0,
             productiveHours: 0,
             unproductiveHours: 0,
-            totalHours: 0
+            neutralHours: 0,
+            totalWorkHours: 0,
         };
 
         logs.forEach(log => {
             const durationHrs = log.duration / 3600;
             if (log.activityType === 'ACTIVE') summary.activeHours += durationHrs;
             if (log.activityType === 'IDLE') summary.idleHours += durationHrs;
-            if (log.activityType === 'BREAK') summary.breakHours = (summary.breakHours || 0) + durationHrs;
+            if (log.activityType === 'MANUAL') summary.manualHours += durationHrs;
+            
             if (log.productivity === 'PRODUCTIVE') summary.productiveHours += durationHrs;
             if (log.productivity === 'UNPRODUCTIVE') summary.unproductiveHours += durationHrs;
+            if (log.productivity === 'NEUTRAL') summary.neutralHours += durationHrs;
         });
 
-        summary.totalHours = summary.activeHours + summary.idleHours;
+        summary.totalWorkHours = summary.activeHours + summary.idleHours + summary.manualHours;
         summary.productivityPct = summary.activeHours > 0 ? Math.round((summary.productiveHours / summary.activeHours) * 100) : 0;
-        summary.utilizationPct = summary.totalHours > 0 ? Math.round((summary.activeHours / summary.totalHours) * 100) : 0;
 
         return summary;
-    },
+    }
 };
 
 module.exports = activityService;

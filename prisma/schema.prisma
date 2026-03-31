@@ -28,17 +28,10 @@ enum ProductivityType {
 }
 
 enum TaskStatus {
-  WORKING_ON_IT
-  DONE
-  STUCK
-  WAITING
-  FOR_CLIENT_REVIEW
-  WAIT_DETAILS
-  WAIT_VSS_CERT
   BACKLOG
-  IN_PROGRESS
-  QA
-  COMPLETED
+  IN_OPERATIONS
+  QUALITY_ASSURANCE
+  FINALIZED
 }
 
 enum TaskPriority {
@@ -210,6 +203,7 @@ model Employee {
 model Project {
   id             String              @id @default(uuid())
   name           String
+  description    String?             @db.Text
   billableRate   Float               @default(0.0)
   budget         Float               @default(0.0)
   organization   Organization        @relation(fields: [organizationId], references: [id])
@@ -262,6 +256,7 @@ model Task {
   organizationId String
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
+  activityLogs   ActivityLog[]
 
   @@map("tasks")
 }
@@ -345,6 +340,8 @@ model ActivityLog {
   appWebsite     String?          @default("Unknown")
   employee       Employee         @relation(fields: [employeeId], references: [id])
   employeeId     String
+  task           Task?            @relation(fields: [taskId], references: [id])
+  taskId         String?
   organization   Organization     @relation(fields: [organizationId], references: [id])
   organizationId String
   createdAt      DateTime         @default(now())

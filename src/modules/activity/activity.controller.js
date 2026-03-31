@@ -112,6 +112,17 @@ const activityController = {
             return errorResponse(res, error.message);
         }
     },
+    getTeamSummary: async (req, res) => {
+        try {
+            const { teamId } = req.params;
+            const { startDate, endDate } = req.query;
+
+            const summary = await activityService.getTeamSummary(teamId, startDate, endDate);
+            return successResponse(res, summary, 'Team summary fetched successfully');
+        } catch (error) {
+            return errorResponse(res, error.message);
+        }
+    },
 };
 
 module.exports = activityController;
