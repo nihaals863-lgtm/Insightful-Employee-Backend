@@ -2,23 +2,27 @@ const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
 async function main() {
-    const attendanceCount = await prisma.attendance.count();
-    const shiftCount = await prisma.shift.count();
-    const manualTimeCount = await prisma.manualTime.count();
+    const taskCount = await prisma.task.count();
+    const projectCount = await prisma.project.count();
+    const activityCount = await prisma.activityLog.count();
     const employeeCount = await prisma.employee.count();
 
     console.log({
-        attendanceCount,
-        shiftCount,
-        manualTimeCount,
+        taskCount,
+        projectCount,
+        activityCount,
         employeeCount
     });
 
-    const recentAttendance = await prisma.attendance.findMany({
-        take: 5,
-        include: { employee: true }
-    });
-    console.log('Recent Attendance:', JSON.stringify(recentAttendance, null, 2));
+    if (taskCount > 0) {
+        const tasks = await prisma.task.findMany({ take: 5 });
+        console.log('Sample Tasks:', tasks);
+    }
+    
+    if (projectCount > 0) {
+        const projects = await prisma.project.findMany({ take: 5 });
+        console.log('Sample Projects:', projects);
+    }
 }
 
 main()

@@ -47,9 +47,19 @@ class ProjectsService {
         });
     }
 
-    async getProjects(organizationId) {
+    async getProjects(organizationId, filter = {}) {
+        const where = { organizationId };
+        
+        if (filter.employeeId) {
+            where.assignments = {
+                some: {
+                    employeeId: filter.employeeId
+                }
+            };
+        }
+
         const projects = await prisma.project.findMany({
-            where: { organizationId },
+            where,
             include: {
                 assignments: {
                     include: {

@@ -16,13 +16,12 @@ const getAdminDashboard = async (req, res) => {
 
 const getManagerDashboard = async (req, res) => {
   try {
-    const { organizationId } = req.user;
+    const { organizationId, teamId, role } = req.user;
     const { startDate, endDate } = req.query;
-    if (req.user.role !== 'MANAGER') {
+    if (role !== 'MANAGER') {
       return res.status(403).json({ message: 'Forbidden: Manager access required' });
     }
-
-    const data = await dashboardService.getAdminDashboard(organizationId, startDate, endDate);
+    const data = await dashboardService.getManagerDashboard(organizationId, teamId, startDate, endDate);
     res.json(data);
   } catch (error) {
     res.status(500).json({ message: error.message });

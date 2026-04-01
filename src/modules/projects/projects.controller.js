@@ -22,12 +22,18 @@ class ProjectsController {
     async getProjects(req, res, next) {
         try {
             const organizationId = await getOrganizationId(req);
+            const { role, employeeId } = req.user;
 
             if (!organizationId) {
                 return errorResponse(res, 'Organization ID is required', 400);
             }
 
-            const projects = await projectsService.getProjects(organizationId);
+            let filter = {};
+            if (role === 'EMPLOYEE' && employeeId) {
+                filter.employeeId = employeeId;
+            }
+
+            const projects = await projectsService.getProjects(organizationId, filter);
             return successResponse(res, projects, 'Projects fetched successfully');
         } catch (error) {
             next(error);

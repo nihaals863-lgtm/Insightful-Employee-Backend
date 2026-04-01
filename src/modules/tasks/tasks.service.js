@@ -113,8 +113,8 @@ class TasksService {
         return task;
     }
 
-    async getBoardTasks(organizationId) {
-        const tasks = await this.getTasks(organizationId);
+    async getBoardTasks(organizationId, filter = {}) {
+        const tasks = await this.getTasks(organizationId, filter);
         
         // Group tasks by status for the Kanban board
         const board = {

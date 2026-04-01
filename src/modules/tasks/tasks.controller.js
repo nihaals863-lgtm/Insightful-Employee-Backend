@@ -16,12 +16,27 @@ class TasksController {
     async getTasks(req, res) {
         try {
             const organizationId = await getOrganizationId(req);
-            const { role, employeeId } = req.user;
-            let filter = {};
+            let { role, employeeId, userId } = req.user;
+            const queryEmployeeId = req.query.employeeId;
+            
+            // Priority 1: Query param override (requested by user)
+            // Priority 2: Token employeeId
+            // Priority 3: Database lookup via userId
+            let effectiveEmployeeId = queryEmployeeId || employeeId;
 
-            // Managers now see all tasks in their organization, same as Admin
-            if (role === 'EMPLOYEE') {
-                filter.employeeId = employeeId;
+            if (!effectiveEmployeeId && role === 'EMPLOYEE') {
+                const user = await require('../../config/db').user.findUnique({
+                    where: { id: userId },
+                    select: { employeeId: true }
+                });
+                effectiveEmployeeId = user?.employeeId;
+            }
+
+            console.log(`[TasksController] Role: ${role}, Org: ${organizationId}, Resolved Emp: ${effectiveEmployeeId}`);
+
+            let filter = {};
+            if (role === 'EMPLOYEE' || queryEmployeeId) {
+                filter.employeeId = effectiveEmployeeId;
             }
 
             const tasks = await tasksService.getTasks(organizationId, filter);
@@ -34,7 +49,25 @@ class TasksController {
     async getBoardTasks(req, res) {
         try {
             const organizationId = await getOrganizationId(req);
-            const board = await tasksService.getBoardTasks(organizationId);
+            let { role, employeeId, userId } = req.user;
+            const queryEmployeeId = req.query.employeeId;
+            
+            let effectiveEmployeeId = queryEmployeeId || employeeId;
+
+            if (!effectiveEmployeeId && role === 'EMPLOYEE') {
+                const user = await require('../../config/db').user.findUnique({
+                    where: { id: userId },
+                    select: { employeeId: true }
+                });
+                effectiveEmployeeId = user?.employeeId;
+            }
+            
+            let filter = {};
+            if ((role === 'EMPLOYEE' && effectiveEmployeeId) || queryEmployeeId) {
+                filter.employeeId = effectiveEmployeeId;
+            }
+
+            const board = await tasksService.getBoardTasks(organizationId, filter);
             return successResponse(res, board, 'Board tasks retrieved successfully');
         } catch (error) {
             return errorResponse(res, error.message);

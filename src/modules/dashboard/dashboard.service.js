@@ -101,7 +101,8 @@ async function getIntradayActivity(organizationId, employeeId = null, teamId = n
     logs.forEach(log => {
         const hour = new Date(log.timestamp).getHours();
         if (log.activityType === 'ACTIVE') hourlyData[hour].active += log.duration;
-        if (log.activityType === 'IDLE') hourlyData[hour].idle += log.duration;
+        else if (log.activityType === 'IDLE') hourlyData[hour].idle += log.duration;
+        else if (log.activityType === 'BREAK') hourlyData[hour].break += log.duration;
     });
 
     manualLogs.forEach(log => {
@@ -116,7 +117,7 @@ async function getIntradayActivity(organizationId, employeeId = null, teamId = n
             name: `${i.toString().padStart(2, '0')}:00`,
             active: Number((hourlyData[i].active / 3600).toFixed(2)),
             idle: Number((hourlyData[i].idle / 3600).toFixed(2)),
-            break: 0, // Implement break tracking if schema supports it later
+            break: Number((hourlyData[i].break / 3600).toFixed(2)),
             manual: Number((hourlyData[i].manual / 3600).toFixed(2)),
         });
     }
