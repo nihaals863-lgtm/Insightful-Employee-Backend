@@ -1,21 +1,12 @@
 const express = require('express');
 const router = express.Router();
 const trackingController = require('./tracking.controller');
-const authMiddleware = require('../../middlewares/auth.middleware');
-const roleMiddleware = require('../../middlewares/role.middleware');
+const authenticate = require('../../middlewares/auth');
 
-// All tracking routes are protected and restricted to ADMIN/MANAGER
-router.use(authMiddleware);
-router.use(roleMiddleware(['ADMIN', 'MANAGER']));
+// Agent uploads (authenticated if possible, but agent might just send employeeId)
+router.post('/upload', authenticate, trackingController.upload);
 
-// Profiles
-router.get('/profiles', trackingController.getProfiles);
-router.post('/profiles', trackingController.createProfile);
-router.put('/profiles/:id', trackingController.updateProfile);
-router.delete('/profiles/:id', trackingController.deleteProfile);
-
-// Advanced Settings
-router.get('/advanced', trackingController.getAdvancedSettings);
-router.put('/advanced', trackingController.updateAdvancedSettings);
+// Admin/Manager views history
+router.get('/history/:employeeId', authenticate, trackingController.getHistory);
 
 module.exports = router;

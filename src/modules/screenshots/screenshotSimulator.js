@@ -11,7 +11,8 @@ function getRandomScreenshotUrl() {
 }
 
 function getRandomProductivity() {
-    const weights = [0.5, 0.3, 0.2]; // 50% productive, 30% neutral, 20% unproductive
+    // Adjusted weights: 40% productive, 30% neutral, 30% unproductive (Idle)
+    const weights = [0.4, 0.3, 0.3]; 
     const random = Math.random();
     let cumulative = 0;
     for (let i = 0; i < weights.length; i++) {

@@ -1,4 +1,5 @@
 const prisma = require('../../config/db');
+const { getIO } = require('../../socket/server');
 
 class TasksService {
     async createTask(data, organizationId) {
@@ -8,7 +9,7 @@ class TasksService {
             throw new Error('Organization ID is required to create a task');
         }
 
-        return await prisma.task.create({
+        const task = await prisma.task.create({
             data: {
                 name,
                 priority: priority || 'MEDIUM',
@@ -31,6 +32,14 @@ class TasksService {
                 employee: true,
             }
         });
+
+        // Emit real-time event
+        const io = getIO();
+        if (io) {
+            io.to(`org_${organizationId}`).emit('task:update', { taskId: task.id, type: 'new' });
+        }
+
+        return task;
     }
 
     async getTasks(organizationId, filter = {}) {
@@ -57,7 +66,7 @@ class TasksService {
         if (status) updateData.status = status;
         if (employeeId !== undefined) updateData.employeeId = employeeId;
 
-        return await prisma.task.update({
+        const task = await prisma.task.update({
             where: { id },
             data: updateData,
             include: {
@@ -65,30 +74,54 @@ class TasksService {
                 employee: true,
             }
         });
+
+        // Emit real-time event
+        const io = getIO();
+        if (io && task) {
+            io.to(`org_${task.organizationId}`).emit('task:update', { taskId: id, type: 'update' });
+        }
+
+        return task;
     }
 
     async updateTaskStatus(id, status) {
-        return await prisma.task.update({
+        const task = await prisma.task.update({
             where: { id },
             data: { status },
         });
+
+        // Emit real-time event
+        const io = getIO();
+        if (io && task) {
+            io.to(`org_${task.organizationId}`).emit('task:update', { taskId: id, type: 'status' });
+        }
+
+        return task;
     }
 
     async deleteTask(id) {
-        return await prisma.task.delete({
+        const task = await prisma.task.delete({
             where: { id },
         });
+
+        // Emit real-time event
+        const io = getIO();
+        if (io && task) {
+            io.to(`org_${task.organizationId}`).emit('task:update', { taskId: id, type: 'delete' });
+        }
+
+        return task;
     }
 
-    async getBoardTasks(organizationId) {
-        const tasks = await this.getTasks(organizationId);
+    async getBoardTasks(organizationId, filter = {}) {
+        const tasks = await this.getTasks(organizationId, filter);
         
         // Group tasks by status for the Kanban board
         const board = {
             BACKLOG: [],
-            IN_PROGRESS: [],
-            QA: [],
-            COMPLETED: []
+            IN_OPERATIONS: [],
+            QUALITY_ASSURANCE: [],
+            FINALIZED: []
         };
 
         tasks.forEach(task => {

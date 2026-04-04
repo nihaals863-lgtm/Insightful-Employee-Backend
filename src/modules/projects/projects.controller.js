@@ -22,12 +22,18 @@ class ProjectsController {
     async getProjects(req, res, next) {
         try {
             const organizationId = await getOrganizationId(req);
+            const { role, employeeId } = req.user;
 
             if (!organizationId) {
                 return errorResponse(res, 'Organization ID is required', 400);
             }
 
-            const projects = await projectsService.getProjects(organizationId);
+            let filter = {};
+            if (role === 'EMPLOYEE' && employeeId) {
+                filter.employeeId = employeeId;
+            }
+
+            const projects = await projectsService.getProjects(organizationId, filter);
             return successResponse(res, projects, 'Projects fetched successfully');
         } catch (error) {
             next(error);
@@ -48,6 +54,26 @@ class ProjectsController {
         try {
             const log = await projectsService.logTime(req.body);
             return successResponse(res, log, 'Time logged successfully', 201);
+        } catch (error) {
+            next(error);
+        }
+    }
+
+    async updateProject(req, res, next) {
+        try {
+            const { id } = req.params;
+            const project = await projectsService.updateProject(id, req.body);
+            return successResponse(res, project, 'Project updated successfully');
+        } catch (error) {
+            next(error);
+        }
+    }
+
+    async deleteProject(req, res, next) {
+        try {
+            const { id } = req.params;
+            await projectsService.deleteProject(id);
+            return successResponse(res, null, 'Project deleted successfully');
         } catch (error) {
             next(error);
         }

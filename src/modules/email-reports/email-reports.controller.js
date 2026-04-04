@@ -1,8 +1,9 @@
 const emailReportsService = require('./email-reports.service');
+const { getOrganizationId } = require('../../utils/orgId');
 
 exports.createReport = async (req, res) => {
     try {
-        const organizationId = req.user.organizationId || req.body.organizationId;
+        const organizationId = await getOrganizationId(req);
         if (!organizationId) {
             return res.status(400).json({ success: false, message: 'Organization ID is required' });
         }
@@ -17,7 +18,7 @@ exports.createReport = async (req, res) => {
 
 exports.getReports = async (req, res) => {
     try {
-        const organizationId = req.user.organizationId;
+        const organizationId = await getOrganizationId(req);
         if (!organizationId) {
             return res.status(400).json({ success: false, message: 'Organization ID is required' });
         }
@@ -32,7 +33,8 @@ exports.getReports = async (req, res) => {
 
 exports.updateReport = async (req, res) => {
     try {
-        const report = await emailReportsService.updateReport(req.params.id, req.body, req.user.organizationId);
+        const organizationId = await getOrganizationId(req);
+        const report = await emailReportsService.updateReport(req.params.id, req.body, organizationId);
         res.json({ success: true, data: report });
     } catch (error) {
         console.error('Error updating email report:', error);
@@ -42,7 +44,8 @@ exports.updateReport = async (req, res) => {
 
 exports.deleteReport = async (req, res) => {
     try {
-        await emailReportsService.deleteReport(req.params.id, req.user.organizationId);
+        const organizationId = await getOrganizationId(req);
+        await emailReportsService.deleteReport(req.params.id, organizationId);
         res.json({ success: true, message: 'Email report deleted successfully' });
     } catch (error) {
         console.error('Error deleting email report:', error);

@@ -12,7 +12,7 @@ const buildReportFilter = (organizationId, startDate, endDate, params = {}) => {
     };
 
     if (userId) {
-        where.userId = userId;
+        where.employeeId = userId;
     } else if (teamId) {
         where.employee = { teamId: teamId };
     }

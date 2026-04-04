@@ -7,6 +7,7 @@ const inviteEmployeeSchema = z.object({
     location: z.string().optional().default('Remote'),
     computerType: z.enum(['COMPANY', 'PERSONAL']).default('PERSONAL'),
     organizationId: z.string(),
+    role: z.enum(['ADMIN', 'MANAGER', 'EMPLOYEE']).default('EMPLOYEE'),
 });
 
 const updateEmployeeSchema = z.object({

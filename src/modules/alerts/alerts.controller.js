@@ -1,10 +1,11 @@
 const alertsService = require('./alerts.service');
+const { getOrganizationId } = require('../../utils/orgId');
 
 const alertsController = {
     getAlertRules: async (req, res) => {
         try {
             const { type } = req.query;
-            const organizationId = req.user.organizationId;
+            const organizationId = await getOrganizationId(req);
             const rules = await alertsService.getAlertRules(organizationId, type);
             res.json(rules);
         } catch (error) {
@@ -14,7 +15,7 @@ const alertsController = {
 
     createAlertRule: async (req, res) => {
         try {
-            const organizationId = req.user.organizationId;
+            const organizationId = await getOrganizationId(req);
             const rule = await alertsService.createAlertRule({
                 ...req.body,
                 organizationId
@@ -45,7 +46,7 @@ const alertsController = {
 
     getSettings: async (req, res) => {
         try {
-            const organizationId = req.user.organizationId;
+            const organizationId = await getOrganizationId(req);
             const settings = await alertsService.getAlertSettings(organizationId);
             res.json(settings);
         } catch (error) {
@@ -55,7 +56,7 @@ const alertsController = {
 
     updateSettings: async (req, res) => {
         try {
-            const organizationId = req.user.organizationId;
+            const organizationId = await getOrganizationId(req);
             const settings = await alertsService.updateAlertSettings(organizationId, req.body);
             res.json(settings);
         } catch (error) {

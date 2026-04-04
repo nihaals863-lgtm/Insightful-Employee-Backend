@@ -14,5 +14,7 @@ router.get('/shifts', attendanceController.getShifts);
 router.post('/shifts', attendanceController.createShift);
 router.get('/time-off', attendanceController.getTimeOffs);
 router.post('/time-off', attendanceController.createTimeOff);
+router.post('/start-break', attendanceController.startBreak);
+router.post('/end-break', attendanceController.endBreak);
 
 module.exports = router;

@@ -18,6 +18,11 @@ const getEmployees = async (organizationId, filter = {}) => {
                     email: true,
                     role: true
                 }
+            },
+            agent: true,
+            tracking: {
+                orderBy: { timestamp: 'desc' },
+                take: 1
             }
         },
         orderBy: {
@@ -160,6 +165,11 @@ const deleteEmployee = async (id) => {
     await prisma.projectAssignment.deleteMany({ where: { employeeId: id } });
     await prisma.projectTimeLog.deleteMany({ where: { employeeId: id } });
     await prisma.payrollRecord.deleteMany({ where: { employeeId: id } });
+    await prisma.timeOff.deleteMany({ where: { employeeId: id } });
+    await prisma.auditLog.deleteMany({ where: { userId: id } });
+    await prisma.agent.deleteMany({ where: { employeeId: id } });
+    await prisma.tracking.deleteMany({ where: { employeeId: id } });
+    await prisma.videoRecording.deleteMany({ where: { employeeId: id } });
     
     // De-assign from tasks instead of deleting tasks
     await prisma.task.updateMany({

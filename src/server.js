@@ -5,13 +5,18 @@ const activitySimulator = require('./services/activitySimulator');
 const { startSimulator: startScreenshotSimulator } = require('./modules/screenshots/screenshotSimulator');
 const { startAppUsageSimulator } = require('./services/appUsageSimulator');
 const { initSocketServer } = require('./socket/server');
+const cleanupService = require('./modules/screenshots/cleanup.service');
 
 const server = app.listen(PORT, () => {
     logger.info(`Server running in ${process.env.NODE_ENV || 'development'} mode on port ${PORT}`);
-    // Start simulation engines
-    activitySimulator.start();
-    startScreenshotSimulator();
-    startAppUsageSimulator();
+    
+    // Start Cleanup Service
+    cleanupService.init();
+
+    // Start simulation engines (Disabled for production/real-data mode)
+    // activitySimulator.start();
+    // startScreenshotSimulator();
+    // startAppUsageSimulator();
 });
 
 // Initialize Socket.IO
