@@ -5,6 +5,7 @@ const fs = require('fs');
 const bcrypt = require('bcrypt');
 const prisma = require('../../config/db');
 const { getIO } = require('../../socket/server');
+const { getOrganizationId } = require('../../utils/orgId');
 
 const register = async (req, res) => {
     try {
@@ -237,7 +238,8 @@ const getStatus = async (req, res) => {
 
 const listAgents = async (req, res) => {
     try {
-        const agents = await agentService.getAllAgents();
+        const organizationId = await getOrganizationId(req);
+        const agents = await agentService.getAllAgents(organizationId);
         return successResponse(res, agents, 'Agents list retrieved');
     } catch (error) {
         console.error('List agents error:', error);

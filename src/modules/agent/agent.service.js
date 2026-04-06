@@ -253,7 +253,10 @@ const logActivity = async (employeeId, data) => {
     } catch (e) { console.error('Tracking log failed:', e.message); }
 
     // 4. Save to LocationLog (for Map) and Update Employee Location
-    if (location && (location.latitude || location.lat) && (location.longitude || location.lon)) {
+    const hasLat = typeof location?.latitude === 'number' || typeof location?.lat === 'number';
+    const hasLng = typeof location?.longitude === 'number' || typeof location?.lon === 'number';
+    
+    if (location && hasLat && hasLng) {
         const lat = parseFloat(location.latitude || location.lat);
         const lng = parseFloat(location.longitude || location.lon);
 
@@ -327,8 +330,10 @@ const findAgentByDeviceId = async (deviceId) => {
 /**
  * Get all registered agents
  */
-const getAllAgents = async () => {
+const getAllAgents = async (organizationId) => {
+    const where = organizationId ? { employee: { organizationId } } : {};
     return await prisma.agent.findMany({
+        where,
         include: {
             employee: {
                 select: {
