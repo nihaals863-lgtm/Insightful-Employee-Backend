@@ -22,7 +22,7 @@ class TasksController {
             // Priority 1: Query param override (requested by user)
             // Priority 2: Token employeeId
             // Priority 3: Database lookup via userId
-            let effectiveEmployeeId = queryEmployeeId || employeeId;
+            let effectiveEmployeeId = (queryEmployeeId && queryEmployeeId !== 'null' && queryEmployeeId !== 'undefined') ? queryEmployeeId : employeeId;
 
             if (!effectiveEmployeeId && role === 'EMPLOYEE') {
                 const user = await require('../../config/db').user.findUnique({
@@ -35,7 +35,7 @@ class TasksController {
             console.log(`[TasksController] Role: ${role}, Org: ${organizationId}, Resolved Emp: ${effectiveEmployeeId}`);
 
             let filter = {};
-            if (role === 'EMPLOYEE' || queryEmployeeId) {
+            if (role === 'EMPLOYEE' || (queryEmployeeId && queryEmployeeId !== 'null')) {
                 filter.employeeId = effectiveEmployeeId;
             }
 
@@ -52,7 +52,7 @@ class TasksController {
             let { role, employeeId, userId } = req.user;
             const queryEmployeeId = req.query.employeeId;
             
-            let effectiveEmployeeId = queryEmployeeId || employeeId;
+            let effectiveEmployeeId = (queryEmployeeId && queryEmployeeId !== 'null' && queryEmployeeId !== 'undefined') ? queryEmployeeId : employeeId;
 
             if (!effectiveEmployeeId && role === 'EMPLOYEE') {
                 const user = await require('../../config/db').user.findUnique({
@@ -63,7 +63,7 @@ class TasksController {
             }
             
             let filter = {};
-            if ((role === 'EMPLOYEE' && effectiveEmployeeId) || queryEmployeeId) {
+            if (role === 'EMPLOYEE' || (queryEmployeeId && queryEmployeeId !== 'null')) {
                 filter.employeeId = effectiveEmployeeId;
             }
 
