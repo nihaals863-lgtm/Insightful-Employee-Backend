@@ -159,9 +159,11 @@ const logActivity = async (employeeId, data) => {
     } catch (err) {
         // Ignore "Already clocked in"
         if (!err.message.includes('Already clocked in')) {
-            console.error('[AgentService] Auto clock-in on activity failed:', err.message);
+            console.error(`[AgentService:${employeeId}] Auto clock-in on activity failed:`, err.message);
         }
     }
+
+    console.log(`[AgentService:${employeeId}] Logging activities: App=${activeApp}, Idle=${idleTime}s`);
 
     // 1. Save Activity Log
     try {
@@ -176,7 +178,7 @@ const logActivity = async (employeeId, data) => {
                 timestamp: timestamp ? new Date(timestamp) : new Date()
             }
         });
-    } catch (e) { console.error('ActivityLog failed:', e.message); }
+    } catch (e) { console.error(`[AgentService:${employeeId}] ActivityLog failed:`, e.message); }
 
     // 2. Update Live Activity
     try {
@@ -214,9 +216,10 @@ const logActivity = async (employeeId, data) => {
                     const filePath = path.join(uploadDir, fileName);
                     fs.writeFileSync(filePath, buffer);
                     finalUrl = `/uploads/screenshots/${fileName}`;
+                    console.log(`[AgentService:${employeeId}] Screenshot saved to disk: ${finalUrl}`);
                 }
             } catch (err) {
-                console.error('Failed to save base64 screenshot to file:', err);
+                console.error(`[AgentService:${employeeId}] Failed to save base64 screenshot to file:`, err.message);
             }
         }
 
@@ -231,7 +234,8 @@ const logActivity = async (employeeId, data) => {
                     productivity: isIdle ? 'UNPRODUCTIVE' : 'NEUTRAL'
                 }
             });
-        } catch (e) { console.error('Screenshot log failed:', e.message); }
+            console.log(`[AgentService:${employeeId}] Screenshot record created in DB`);
+        } catch (e) { console.error(`[AgentService:${employeeId}] Screenshot log failed:`, e.message); }
         
         // Also update tracking for history with the file URL
         data.screenshotUrl = finalUrl; 
@@ -250,7 +254,7 @@ const logActivity = async (employeeId, data) => {
                 timestamp: timestamp ? new Date(timestamp) : new Date()
             }
         });
-    } catch (e) { console.error('Tracking log failed:', e.message); }
+    } catch (e) { console.error(`[AgentService:${employeeId}] Tracking log failed:`, e.message); }
 
     // 4. Save to LocationLog (for Map) and Update Employee Location
     const hasLat = typeof location?.latitude === 'number' || typeof location?.lat === 'number';
@@ -270,7 +274,8 @@ const logActivity = async (employeeId, data) => {
                     source: 'AGENT'
                 }
             });
-        } catch (e) { console.error('LocationLog failed:', e.message); }
+            console.log(`[AgentService:${employeeId}] Location log saved: ${lat}, ${lng}`);
+        } catch (e) { console.error(`[AgentService:${employeeId}] LocationLog failed:`, e.message); }
 
         try {
             await prisma.employee.update({
